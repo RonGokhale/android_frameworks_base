@@ -43,7 +43,7 @@ import com.android.internal.telephony.uicc.IccConstants;
  */
 public class MSimIccProvider extends IccProvider {
     private static final String TAG = "MSimIccProvider";
-    private static final boolean DBG = false;
+    private static final boolean DBG = true;
 
     private static final int ADN_SUB1 = 1;
     private static final int ADN_SUB2 = 2;

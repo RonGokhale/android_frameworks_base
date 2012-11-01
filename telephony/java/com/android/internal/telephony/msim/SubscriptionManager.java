@@ -527,7 +527,10 @@ public class SubscriptionManager extends Handler {
            return;
         }
 
-        if (ar.exception != null) {
+        
+        //temp disable exception check, because EVENT_SET_UICC_SUBSCRIPTION_DONE is not supported on 40400, we use setRadioPower instead
+        
+        /*if (ar.exception != null) {
             // SET_UICC_SUBSCRIPTION failed
 
             if (ar.exception instanceof CommandException ) {
@@ -535,11 +538,7 @@ public class SubscriptionManager extends Handler {
                     .getCommandError();
                 if (error != null &&
                         error ==  CommandException.Error.SUBSCRIPTION_NOT_SUPPORTED) {
-                    if (setSubParam.subStatus == SubscriptionStatus.SUB_ACTIVATE) {
-                        cause = SUB_ACTIVATE_NOT_SUPPORTED;
-                    } else if (setSubParam.subStatus == SubscriptionStatus.SUB_DEACTIVATE) {
-                        cause = SUB_DEACTIVATE_NOT_SUPPORTED;
-                    }
+                    cause = SUB_DEACTIVATE_NOT_SUPPORTED;
                 }
             }
 
@@ -585,7 +584,10 @@ public class SubscriptionManager extends Handler {
             }else {
                 logd("UNKOWN: SHOULD NOT HIT HERE");
             }
-        } else {
+        } else */
+        
+        
+        {
             // SET_UICC_SUBSCRIPTION success
             if (setSubParam.subStatus == SubscriptionStatus.SUB_ACTIVATE) {
                 // Activate Success!!
@@ -596,6 +598,17 @@ public class SubscriptionManager extends Handler {
 
                 // Clear the pending activate request list
                 mActivatePending.put(SubscriptionId.values()[setSubParam.subId], null);
+                
+                //2012-08-01 update subscription data in MSimCDMAPhone, otherwise Phone can not get IccRecords-Start*/
+                notifySubscriptionActivated(setSubParam.subId);
+              //2012-08-01 update subscription data in MSimCDMAPhone, otherwise Phone can not get IccRecords-End*/
+                
+                //send intent to notify Contact we are ready to load ADN records
+                Intent activatedIntent = new Intent("com.android.telephony.SubscriptionManager.cardactivated");
+                activatedIntent.putExtra("subid", setSubParam.subId);
+                mContext.sendBroadcast(activatedIntent);
+                //send intent to notify Contact we are ready to load ADN records
+                
             } else if (setSubParam.subStatus == SubscriptionStatus.SUB_DEACTIVATE) {
                 // Deactivate success
                 logd("subscription of SUB:" + setSubParam.subId + " Deactivated");
