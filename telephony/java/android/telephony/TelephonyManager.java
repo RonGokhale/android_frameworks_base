@@ -29,6 +29,7 @@ import android.provider.Settings.SettingNotFoundException;
 import com.android.internal.telephony.IPhoneSubInfo;
 import com.android.internal.telephony.ITelephony;
 import com.android.internal.telephony.ITelephonyRegistry;
+import com.android.internal.telephony.MSimConstants;
 import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.PhoneFactory;
 import com.android.internal.telephony.TelephonyProperties;
@@ -56,8 +57,14 @@ import java.util.List;
 public class TelephonyManager {
     private static final String TAG = "TelephonyManager";
 
-    private static Context sContext;
-    private static ITelephonyRegistry sRegistry;
+    /** @hide */
+    protected static Context sContext;
+    /** @hide */
+    protected static ITelephonyRegistry sRegistry;
+
+    /** @hide */
+    protected static boolean isMultiSimEnabled =
+            SystemProperties.getBoolean(TelephonyProperties.PROPERTY_MULTI_SIM_CONFIG, false);
 
     /** @hide */
     public TelephonyManager(Context context) {
@@ -75,7 +82,7 @@ public class TelephonyManager {
     }
 
     /** @hide */
-    private TelephonyManager() {
+    protected TelephonyManager() {
     }
 
     private static TelephonyManager sInstance = new TelephonyManager();
@@ -83,6 +90,9 @@ public class TelephonyManager {
     /** @hide
     /* @deprecated - use getSystemService as described above */
     public static TelephonyManager getDefault() {
+        //if (isMultiSimEnabled) {
+        //    return MSimTelephonyManager.getDefault();
+        //}
         return sInstance;
     }
 
@@ -93,7 +103,20 @@ public class TelephonyManager {
 
     /** @hide */
     public static boolean isMultiSimEnabled() {
-        return false;
+        return isMultiSimEnabled;
+    }
+
+    /**
+     * Returns the number of phones available.
+     * Returns 1 for Single standby mode (Single SIM functionality)
+     * Returns 2 for Dual standby mode.(Dual SIM functionality)
+     */
+    public int getPhoneCount() {
+        int phoneCount = 1;
+        if (isMultiSimEnabled) {
+            phoneCount = MSimConstants.MAX_PHONE_COUNT_DS;
+        }
+        return phoneCount;
     }
 
     //

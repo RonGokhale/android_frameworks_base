@@ -104,6 +104,11 @@ public interface TelephonyProperties
      */
     static String PROPERTY_ICC_OPERATOR_NUMERIC = "gsm.sim.operator.numeric";
 
+    /** record  the operator numeric in different property,get PROPERTY_ICC_OPERATOR_NUMERIC 
+     *  just return slot 0 operator numeric;
+     */
+    static String PROPERTY_ICC2_OPERATOR_NUMERIC = "gsm.sim2.operator.numeric";
+	
     /** The MCC+MNC (mobile country code+mobile network code) of the
      *  provider of the SIM to be used for APNs lookup. 5 or 6 decimal digits.
      *  Availability: SIM state must be "READY"

@@ -1826,6 +1826,14 @@ public final class Settings {
         public static final String AUTO_ANSWER_TIMEOUT = "auto_answer";
 
         /**
+         * display duration info after end call.
+         *                 0 = Off
+         *                 1 = On
+         * @hide
+         */
+        public static final String SHOW_DURATION = "show_duration";
+
+        /**
           * Subscription to be used for voice call on a multi sim device. The supported values
           * are 0 = SUB1, 1 = SUB2.
           * @hide
@@ -1845,6 +1853,13 @@ public final class Settings {
           * @hide
           */
         public static final String MULTI_SIM_DATA_CALL_SUBSCRIPTION = "multi_sim_data_call";
+
+        /**
+          * Subscription to be used for multi Sim IP Call Prefix Setting. The supported values
+          * are  0 = SUB1, 1 = SUB2.
+          * @hide
+          */
+        public static final String [] IPCALL_PREFIX = { "ipcall_prefix_sub1", "ipcall_prefix_sub2" };
 
         /**
           * Subscription to be used for SMS on a multi sim device. The supported values
@@ -1867,6 +1882,31 @@ public final class Settings {
          */
         public static final String[] USER_PREFERRED_SUBS = {"user_preferred_sub1",
                 "user_preferred_sub2"};
+
+        /**
+          * Channel name for subcription one and two i.e. channele name 1, channel name 2
+          * @hide
+          */
+        public static final String [] MULTI_SIM_NAME = {"perferred_name_sub1", "preferred_name_sub2"};
+
+        /**
+          * User preferred countdown waiting time when select subscription to dial or sms
+          * @hide
+          */
+        public static final String MULTI_SIM_COUNTDOWN = "mutli_sim_countdown";
+
+        /** Callback enable option
+         * @hide
+         */
+        public static final String CALLBACK_PRIORITY_ENABLED = "callback_priority_enabled";
+
+        /**
+         * Set the proximity sensor on or off.
+         *                 0 = Off
+         *                 1 = On
+         * @hide
+         */
+        public static final String PROXIMITY_SENSOR = "proximity_sensor";
 
         /**
          * CDMA only settings
@@ -1911,6 +1951,13 @@ public final class Settings {
          * @hide
          */
         public static final String TTY_MODE = "tty_mode";
+
+        public static final String DATA_ROAMING_SUB1 = "data_roaming_sub1";
+        public static final String DATA_ROAMING_SUB2 = "data_roaming_sub2";
+        public static final String DATA_ROAMING_MMS_SUB1 = "data_roaming_mms_sub1";
+		 public static final String DATA_ROAMING_MMS_SUB2 = "data_roaming_mms_sub2";
+        public static final String APN_CHANGED_SUB1  = "apnChangedSub1";
+        public static final String APN_CHANGED_SUB2  = "apnChangedSub2";
 
         /**
          * Whether the sounds effects (key clicks, lid open ...) are enabled. The value is
@@ -2143,6 +2190,12 @@ public final class Settings {
             SIP_CALL_OPTIONS,
             SIP_RECEIVE_CALLS,
             POINTER_SPEED,
+            DATA_ROAMING_SUB1,
+            DATA_ROAMING_SUB2,
+            DATA_ROAMING_MMS_SUB1,
+            DATA_ROAMING_MMS_SUB2,
+            APN_CHANGED_SUB1,
+            APN_CHANGED_SUB2,
             VIBRATE_WHEN_RINGING
         };
 

@@ -47,6 +47,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.Registrant;
 import android.os.RegistrantList;
+import android.os.SystemProperties;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
@@ -92,6 +93,8 @@ public class SubscriptionManager extends Handler {
             cause = null;
         }
     }
+    
+    public static boolean networkModeChangedBySettings = false;
 
     //***** Class Variables
     private static SubscriptionManager sSubscriptionManager;
@@ -100,6 +103,12 @@ public class SubscriptionManager extends Handler {
 
     // Number of fields in the user preferred subscription property
     private static int USER_PREF_SUB_FIELDS = 6;
+
+    // Mode types, refer to the property set in qcril
+    private static final String PROPERTY_RIL_SUBSMODE = "ril.subsmode";
+    private static final String MODE_1x = "1x";
+    private static final String MODE_GW = "gw";
+    private static final String MODE_UNKNOWN = "unknown";
 
     //***** Events
     private static final int EVENT_CARD_INFO_AVAILABLE = 0;
@@ -170,6 +179,9 @@ public class SubscriptionManager extends Handler {
     private String[] mSubResult = new String [NUM_SUBSCRIPTIONS];
 
     private boolean[] mRadioOn = {false, false};
+    
+    //indicate the checked status of card SLOT
+    public boolean[] mCardShouldEnable = {false, false};
 
 
     /**
@@ -706,10 +718,13 @@ public class SubscriptionManager extends Handler {
      * Handles EVENT_SET_SUBSCRIPTION_MODE_DONE.
      */
     private void processSetSubscriptionModeDone() {
-        if (!isAllRadioOn()) {
-           logd("processSetSubscriptionModeDone: Radio Not Available");
-           return;
-        }
+    	if(mCardShouldEnable[0] == true && mCardShouldEnable[1] == true)
+    	{
+    		if (!isAllRadioOn()) {
+    			logd("processSetSubscriptionModeDone: Radio Not Available");
+    			return;
+    		}
+    	}
 
         startNextPendingActivateRequests();
     }
@@ -826,6 +841,80 @@ public class SubscriptionManager extends Handler {
             for (int i = 0; i < mIsNewCard.length; i++) {
                 mIsNewCard[i] = false;
             }
+        }
+    }
+
+    public void setDefaultAppIndex(Subscription sub) {
+        int cardIndex = sub.slotId;
+        String mode = getPreferredMode(cardIndex);
+        int appIndex = getAppIndexByMode(cardIndex, mode);
+
+        if (MODE_1x.equals(mode)) {
+            sub.m3gpp2Index = appIndex;
+            sub.m3gppIndex = Subscription.SUBSCRIPTION_INDEX_INVALID;
+        } else if (MODE_GW.equals(mode)) {
+            sub.m3gpp2Index = Subscription.SUBSCRIPTION_INDEX_INVALID;
+            sub.m3gppIndex = appIndex;
+        } else {
+            // FIXME:
+            // !!! HERE should be wrong, then we prefer which mode?
+            logd("failed to get preferred mode, set w/g mode by default!");
+            sub.m3gpp2Index = Subscription.SUBSCRIPTION_INDEX_INVALID;
+            sub.m3gppIndex = appIndex;
+        }
+    }
+
+    private int getAppIndexByMode(int cardIndex, String mode) {
+        logd("getAppIndexByMode(" + cardIndex + ", " + mode + ")" );
+
+        SubscriptionData cardSub = mCardSubMgr.getCardSubscriptions(cardIndex);
+        int appIndex = Subscription.SUBSCRIPTION_INDEX_INVALID;
+
+        if (cardSub != null) {
+            for (int i = 0; i < cardSub.getLength(); i++) {
+                Subscription sub = cardSub.subscription[i];
+                if (MODE_1x.equals(mode)) {
+                    if (("RUIM").equals(sub.appType)) {
+                        logd("find the first RUIM appIndex " + i);
+                        appIndex = i;
+                        break;
+                    } else if (("CSIM").equals(sub.appType)) {
+                        logd("find the first CSIM appIndex " + i);
+                        appIndex = i;
+                        break;
+                    }
+                } else if (MODE_GW.equals(mode)) {
+                    if (("USIM").equals(sub.appType)) {
+                        logd("find the first USIM appIndex " + i);
+                        appIndex = i;
+                        break;
+                    } else if (("SIM").equals(sub.appType)) {
+                        logd("find the first SIM appIndex " + i);
+                        appIndex = i;
+                        break;
+                    }
+                }
+            }
+            if (appIndex == Subscription.SUBSCRIPTION_INDEX_INVALID) {
+                Log.e(LOG_TAG, "failed to find the preferred app, use the first appIndex");
+                appIndex = 0;
+            }
+        }
+        return appIndex;
+    }
+
+    /** NOTE :
+     *   The proper ril.subsmode is set in qcril,
+     *   only 1x, gw and unknown are valid for each subscription.
+     */
+    private String getPreferredMode(int cardIndex) {
+        String modes = SystemProperties.get(PROPERTY_RIL_SUBSMODE);
+        logd(PROPERTY_RIL_SUBSMODE + "=[" + modes + "]");
+        String[] mode = modes.split(",");
+        if (cardIndex >= mode.length) {
+            return MODE_UNKNOWN;
+        } else {
+            return mode[cardIndex];
         }
     }
 
@@ -1557,4 +1646,30 @@ public class SubscriptionManager extends Handler {
     public boolean isSetSubscriptionInProgress() {
         return mSetSubscriptionInProgress;
     }
+
+    /*
+     ** check whether a new card insert, include the card change the slot
+     */
+    private boolean isCardChanaged() {
+        for (int cardIndex=0; cardIndex<NUM_SUBSCRIPTIONS; cardIndex++) {
+            SubscriptionData cardSubInfo = mCardSubMgr.getCardSubscriptions(cardIndex);
+            Subscription userPrefSubscription = mUserPrefSubs.subscription[cardIndex];
+            if ((cardSubInfo != null) && (!cardSubInfo.hasSubscription(userPrefSubscription))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public int getActiveDDS(){
+        return mCurrentDds;
+    }
+    
+    //give MultiSimEnabler a shortcut method to set radio power
+    public void setRadioPowerOn(int subscriptionID, boolean flag)
+    {
+//    	mCi[subscriptionID].setRadioPower(flag, null);
+    	 MSimPhoneFactory.getPhone(subscriptionID).setRadioPower(flag);
+    }
+
 }
