@@ -158,7 +158,8 @@ public abstract class IccPhoneBookInterfaceManager extends IIccPhoneBook.Stub {
     public boolean
     updateAdnRecordsInEfBySearch (int efid,
             String oldTag, String oldPhoneNumber,
-            String newTag, String newPhoneNumber, String pin2) {
+            String newTag, String newPhoneNumber, 
+			String newEmail, String newAnr, String pin2) {
 
 
         if (phone.getContext().checkCallingOrSelfPermission(
@@ -171,7 +172,8 @@ public abstract class IccPhoneBookInterfaceManager extends IIccPhoneBook.Stub {
 
         if (DBG) logd("updateAdnRecordsInEfBySearch: efid=" + efid +
                 " ("+ oldTag + "," + oldPhoneNumber + ")"+ "==>" +
-                " ("+ newTag + "," + newPhoneNumber + ")"+ " pin2=" + pin2);
+                " ("+ newTag + "," + newPhoneNumber + "," + newEmail + "," + newAnr + ")"
+				+ " pin2=" + pin2);
 
         efid = updateEfForIccType(efid);
 
@@ -181,7 +183,7 @@ public abstract class IccPhoneBookInterfaceManager extends IIccPhoneBook.Stub {
             AtomicBoolean status = new AtomicBoolean(false);
             Message response = mBaseHandler.obtainMessage(EVENT_UPDATE_DONE, status);
             AdnRecord oldAdn = new AdnRecord(oldTag, oldPhoneNumber);
-            AdnRecord newAdn = new AdnRecord(newTag, newPhoneNumber);
+            AdnRecord newAdn = new AdnRecord(newTag, newPhoneNumber, newEmail, newAnr);
             if (adnCache != null) {
                 adnCache.updateAdnBySearch(efid, oldAdn, newAdn, pin2, response);
                 waitForResult(status);

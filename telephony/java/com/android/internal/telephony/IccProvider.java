@@ -130,8 +130,11 @@ public class IccProvider extends ContentProvider {
 
         String tag = initialValues.getAsString("tag");
         String number = initialValues.getAsString("number");
+        String email = initialValues.getAsString("email");
+        String anr = initialValues.getAsString("anr");
+        if (DBG) log("insert [" + tag + ", " + number + ", " +  email + ", " + anr + "]");
         // TODO(): Read email instead of sending null.
-        boolean success = addIccRecordToEf(efType, tag, number, null, pin2);
+        boolean success = addIccRecordToEf(efType, tag, number, email, anr, pin2);
 
         if (!success) {
             return null;
@@ -270,13 +273,13 @@ public class IccProvider extends ContentProvider {
 
         String tag = values.getAsString("tag");
         String number = values.getAsString("number");
-        String[] emails = null;
         String newTag = values.getAsString("newTag");
         String newNumber = values.getAsString("newNumber");
-        String[] newEmails = null;
+        String newEmail = values.getAsString("newNumber");
+		String newAnr = values.getAsString("newAnr");
         // TODO(): Update for email.
         boolean success = updateIccRecordInEf(efType, tag, number,
-                newTag, newNumber, pin2);
+                newTag, newNumber, newEmail, newAnr, pin2);
 
         if (!success) {
             return 0;
@@ -318,9 +321,9 @@ public class IccProvider extends ContentProvider {
     }
 
     private boolean
-    addIccRecordToEf(int efType, String name, String number, String[] emails, String pin2) {
+    addIccRecordToEf(int efType, String name, String number, String email, String anr, String pin2) {
         if (DBG) log("addIccRecordToEf: efType=" + efType + ", name=" + name +
-                ", number=" + number + ", emails=" + emails);
+                ", number=" + number + ", email=" + email + ", anr= " + anr);
 
         boolean success = false;
 
@@ -334,7 +337,7 @@ public class IccProvider extends ContentProvider {
                     ServiceManager.getService("simphonebook"));
             if (iccIpb != null) {
                 success = iccIpb.updateAdnRecordsInEfBySearch(efType, "", "",
-                        name, number, pin2);
+                        name, number, email, anr, pin2);
             }
         } catch (RemoteException ex) {
             // ignore it
@@ -347,7 +350,7 @@ public class IccProvider extends ContentProvider {
 
     private boolean
     updateIccRecordInEf(int efType, String oldName, String oldNumber,
-            String newName, String newNumber, String pin2) {
+            String newName, String newNumber, String newEmail, String newAnr, String pin2) {
         if (DBG) log("updateIccRecordInEf: efType=" + efType +
                 ", oldname=" + oldName + ", oldnumber=" + oldNumber +
                 ", newname=" + newName + ", newnumber=" + newNumber);
@@ -358,7 +361,7 @@ public class IccProvider extends ContentProvider {
                     ServiceManager.getService("simphonebook"));
             if (iccIpb != null) {
                 success = iccIpb.updateAdnRecordsInEfBySearch(efType,
-                        oldName, oldNumber, newName, newNumber, pin2);
+                        oldName, oldNumber, newName, newNumber, newEmail, newAnr, pin2);
             }
         } catch (RemoteException ex) {
             // ignore it
@@ -382,7 +385,7 @@ public class IccProvider extends ContentProvider {
                     ServiceManager.getService("simphonebook"));
             if (iccIpb != null) {
                 success = iccIpb.updateAdnRecordsInEfBySearch(efType,
-                        name, number, "", "", pin2);
+                        name, number, "", "", "", "", pin2);
             }
         } catch (RemoteException ex) {
             // ignore it
@@ -409,15 +412,16 @@ public class IccProvider extends ContentProvider {
             contact[0] = alphaTag;
             contact[1] = number;
 
-            String[] emails = record.getEmails();
-            if (emails != null) {
-                StringBuilder emailString = new StringBuilder();
-                for (String email: emails) {
-                    if (DBG) log("Adding email:" + email);
-                    emailString.append(email);
-                    emailString.append(",");
-                }
-                contact[2] = emailString.toString();
+            String email = record.getEmail();
+            if (email != null) {
+                //StringBuilder emailString = new StringBuilder();
+                //for (String email: emails) {
+                //    if (DBG) log("Adding email:" + email);
+                //    emailString.append(email);
+                 //   emailString.append(",");
+                //}
+                //contact[2] = emailString.toString();
+				contact[2] = email;
             }
             contact[3] = id;
             cursor.addRow(contact);

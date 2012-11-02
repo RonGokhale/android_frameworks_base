@@ -73,6 +73,7 @@ interface IIccPhoneBookMSim {
     boolean updateAdnRecordsInEfBySearch(int efid,
             String oldTag, String oldPhoneNumber,
             String newTag, String newPhoneNumber,
+	    String newEmail, String newAnr,
             String pin2, int subscription);
 
     /**

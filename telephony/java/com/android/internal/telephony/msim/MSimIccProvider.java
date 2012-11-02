@@ -137,8 +137,11 @@ public class MSimIccProvider extends IccProvider {
 
         String tag = initialValues.getAsString("tag");
         String number = initialValues.getAsString("number");
+        String email = initialValues.getAsString("email");
+        String anr = initialValues.getAsString("anr");
+        if (DBG) log("insert into subscription " + subscription + ", [" + tag + ", " + number + ", " +  email + ", " + anr + "]");
         // TODO(): Read email instead of sending null.
-        boolean success = addIccRecordToEf(efType, tag, number, null, pin2, subscription);
+        boolean success = addIccRecordToEf(efType, tag, number, email, anr , pin2, subscription);
 
         if (!success) {
             return null;
@@ -214,7 +217,8 @@ public class MSimIccProvider extends IccProvider {
         // parse where clause
         String tag = null;
         String number = null;
-        String[] emails = null;
+        String email = null;
+		String anr = null;
         String pin2 = null;
 
         String[] tokens = where.split("AND");
@@ -240,7 +244,7 @@ public class MSimIccProvider extends IccProvider {
                 number = normalizeValue(val);
             } else if (STR_EMAILS.equals(key)) {
                 //TODO(): Email is null.
-                emails = null;
+                email = null;
             } else if (STR_PIN2.equals(key)) {
                 pin2 = normalizeValue(val);
             }
@@ -254,7 +258,7 @@ public class MSimIccProvider extends IccProvider {
             return 0;
         }
 
-        boolean success = deleteIccRecordFromEf(efType, tag, number, emails, pin2, subscription);
+        boolean success = deleteIccRecordFromEf(efType, tag, number, email, anr, pin2, subscription);
         if (!success) {
             return 0;
         }
@@ -295,13 +299,13 @@ public class MSimIccProvider extends IccProvider {
 
         String tag = values.getAsString("tag");
         String number = values.getAsString("number");
-        String[] emails = null;
         String newTag = values.getAsString("newTag");
         String newNumber = values.getAsString("newNumber");
-        String[] newEmails = null;
+        String newEmail = values.getAsString("newNumber");
+		String newAnr = values.getAsString("newAnr");
         // TODO(): Update for email.
         boolean success = updateIccRecordInEf(efType, tag, number,
-                newTag, newNumber, pin2, subscription);
+                newTag, newNumber, newEmail, newAnr, pin2, subscription);
 
         if (!success) {
             return 0;
@@ -343,10 +347,10 @@ public class MSimIccProvider extends IccProvider {
     }
 
     private boolean
-    addIccRecordToEf(int efType, String name, String number, String[] emails,
+    addIccRecordToEf(int efType, String name, String number, String email, String anr,
             String pin2, int subscription) {
         if (DBG) log("addIccRecordToEf: efType=" + efType + ", name=" + name +
-                ", number=" + number + ", emails=" + emails +
+                ", number=" + number + ", email=" + email + ", anr=" + anr +
                 ", subscription=" + subscription);
 
         boolean success = false;
@@ -361,7 +365,7 @@ public class MSimIccProvider extends IccProvider {
                     ServiceManager.getService("simphonebook_msim"));
             if (iccIpb != null) {
                 success = iccIpb.updateAdnRecordsInEfBySearch(efType,
-                        "", "", name, number, pin2, subscription);
+                        "", "", name, number, email, anr, pin2, subscription);
             }
         } catch (RemoteException ex) {
             // ignore it
@@ -374,10 +378,10 @@ public class MSimIccProvider extends IccProvider {
 
     private boolean
     updateIccRecordInEf(int efType, String oldName, String oldNumber,
-            String newName, String newNumber, String pin2, int subscription) {
+            String newName, String newNumber, String newEmail, String newAnr, String pin2, int subscription) {
         if (DBG) log("updateIccRecordInEf: efType=" + efType +
                 ", oldname=" + oldName + ", oldnumber=" + oldNumber +
-                ", newname=" + newName + ", newnumber=" + newNumber +
+                ", newname=" + newName + ", newnumber=" + newNumber + ", newEmail = " + newEmail + ", newAnr = " + newAnr +
                 ", subscription=" + subscription);
         boolean success = false;
 
@@ -386,7 +390,7 @@ public class MSimIccProvider extends IccProvider {
                     ServiceManager.getService("simphonebook_msim"));
             if (iccIpb != null) {
                 success = iccIpb.updateAdnRecordsInEfBySearch(efType, oldName,
-                        oldNumber, newName, newNumber, pin2, subscription);
+                        oldNumber, newName, newNumber, newEmail, newAnr, pin2, subscription);
             }
         } catch (RemoteException ex) {
             // ignore it
@@ -397,10 +401,10 @@ public class MSimIccProvider extends IccProvider {
         return success;
     }
 
-    private boolean deleteIccRecordFromEf(int efType, String name, String number, String[] emails,
+    private boolean deleteIccRecordFromEf(int efType, String name, String number, String email, String anr,
             String pin2, int subscription) {
         if (DBG) log("deleteIccRecordFromEf: efType=" + efType +
-                ", name=" + name + ", number=" + number + ", emails=" + emails +
+                ", name=" + name + ", number=" + number + ", email=" + email +
                 ", pin2=" + pin2 + ", subscription=" + subscription);
 
         boolean success = false;
@@ -410,7 +414,7 @@ public class MSimIccProvider extends IccProvider {
                     ServiceManager.getService("simphonebook_msim"));
             if (iccIpb != null) {
                 success = iccIpb.updateAdnRecordsInEfBySearch(efType,
-                          name, number, "", "", pin2, subscription);
+                          name, number, "", "", "", "", pin2, subscription);
             }
         } catch (RemoteException ex) {
             // ignore it

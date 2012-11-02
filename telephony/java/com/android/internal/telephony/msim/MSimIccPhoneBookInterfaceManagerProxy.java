@@ -46,13 +46,13 @@ public class MSimIccPhoneBookInterfaceManagerProxy extends IIccPhoneBookMSim.Stu
 
     public boolean
     updateAdnRecordsInEfBySearch(int efid, String oldTag, String oldPhoneNumber, String newTag,
-            String newPhoneNumber, String pin2,
+            String newPhoneNumber, String newEmail, String newAnr, String pin2,
             int subscription) throws android.os.RemoteException {
         IccPhoneBookInterfaceManagerProxy iccPbkIntMgrProxy =
                              getIccPhoneBookInterfaceManagerProxy(subscription);
         if (iccPbkIntMgrProxy != null) {
             return iccPbkIntMgrProxy.updateAdnRecordsInEfBySearch(efid, oldTag,
-                    oldPhoneNumber, newTag, newPhoneNumber, pin2);
+                    oldPhoneNumber, newTag, newPhoneNumber, newEmail, newAnr, pin2);
         } else {
             Log.e(TAG,"updateAdnRecordsInEfBySearch iccPbkIntMgrProxy is" +
                       " null for Subscription:"+subscription);

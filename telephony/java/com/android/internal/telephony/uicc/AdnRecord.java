@@ -41,7 +41,8 @@ public class AdnRecord implements Parcelable {
 
     String alphaTag = null;
     String number = null;
-    String[] emails;
+    String email;
+    String additionalNumber = null;
     int extRecord = 0xff;
     int efid;                   // or 0 if none
     int recordNumber;           // or 0 if none
@@ -78,15 +79,16 @@ public class AdnRecord implements Parcelable {
             int recordNumber;
             String alphaTag;
             String number;
-            String[] emails;
-
+            String email;
+            String additionalNumber;
             efid = source.readInt();
             recordNumber = source.readInt();
             alphaTag = source.readString();
             number = source.readString();
-            emails = source.readStringArray();
+            email = source.readString();
+            additionalNumber = source.readString();
 
-            return new AdnRecord(efid, recordNumber, alphaTag, number, emails);
+            return new AdnRecord(efid, recordNumber, alphaTag, number, email, additionalNumber);
         }
 
         public AdnRecord[] newArray(int size) {
@@ -110,24 +112,37 @@ public class AdnRecord implements Parcelable {
         this(0, 0, alphaTag, number);
     }
 
-    public AdnRecord (String alphaTag, String number, String[] emails) {
-        this(0, 0, alphaTag, number, emails);
+    public AdnRecord (String alphaTag, String number, String email) {
+        this(0, 0, alphaTag, number, email);
     }
 
-    public AdnRecord (int efid, int recordNumber, String alphaTag, String number, String[] emails) {
+    public AdnRecord (String alphaTag, String number, String email, String additionalNumber) {
+        this(0, 0, alphaTag, number, email, additionalNumber);
+    }
+    public AdnRecord (int efid, int recordNumber, String alphaTag, String number, String email) {
         this.efid = efid;
         this.recordNumber = recordNumber;
         this.alphaTag = alphaTag;
         this.number = number;
-        this.emails = emails;
+        this.email = email;
+        this.additionalNumber = null;
     }
 
+    public AdnRecord (int efid, int recordNumber, String alphaTag, String number, String email, String additionalNumber) {
+        this.efid = efid;
+        this.recordNumber = recordNumber;
+        this.alphaTag = alphaTag;
+        this.number = number;
+        this.email = email;
+        this.additionalNumber = additionalNumber;
+    }
     public AdnRecord(int efid, int recordNumber, String alphaTag, String number) {
         this.efid = efid;
         this.recordNumber = recordNumber;
         this.alphaTag = alphaTag;
         this.number = number;
-        this.emails = null;
+        this.email = null;
+        this.additionalNumber = null;
     }
 
     //***** Instance Methods
@@ -140,20 +155,28 @@ public class AdnRecord implements Parcelable {
         return number;
     }
 
-    public String[] getEmails() {
-        return emails;
+    public String getEmail() {
+        return email;
     }
 
-    public void setEmails(String[] emails) {
-        this.emails = emails;
+    public void setEmail(String email) {
+        this.email = email;
     }
 
+    public String getAdditionalNumber() {
+        return additionalNumber;
+    }
+    public void setAdditionalNumber(String additionalNumber) {
+        this.additionalNumber = additionalNumber;
+    }
     public String toString() {
-        return "ADN Record '" + alphaTag + "' '" + number + " " + emails + "'";
+        return "ADN Record '" + alphaTag + "' '" + number + " "
+            + email + " " + additionalNumber + "'" ;
     }
 
     public boolean isEmpty() {
-        return TextUtils.isEmpty(alphaTag) && TextUtils.isEmpty(number) && emails == null;
+        return TextUtils.isEmpty(alphaTag) && TextUtils.isEmpty(number)
+            && email == null && additionalNumber == null;
     }
 
     public boolean hasExtendedRecord() {
@@ -177,7 +200,8 @@ public class AdnRecord implements Parcelable {
     public boolean isEqual(AdnRecord adn) {
         return ( stringCompareNullEqualsEmpty(alphaTag, adn.alphaTag) &&
                 stringCompareNullEqualsEmpty(number, adn.number) &&
-                Arrays.equals(emails, adn.emails));
+                stringCompareNullEqualsEmpty(email, adn.email) &&
+                stringCompareNullEqualsEmpty(additionalNumber, adn.additionalNumber)) ;
     }
     //***** Parcelable Implementation
 
@@ -190,7 +214,8 @@ public class AdnRecord implements Parcelable {
         dest.writeInt(recordNumber);
         dest.writeString(alphaTag);
         dest.writeString(number);
-        dest.writeStringArray(emails);
+        dest.writeString(email);
+        dest.writeString(additionalNumber);
     }
 
     /**
@@ -285,6 +310,16 @@ public class AdnRecord implements Parcelable {
     private void
     parseRecord(byte[] record) {
         try {
+        	if(record == null || record.length == 0)
+        	{
+        		Log.w(LOG_TAG, "Error parsing AdnRecord ---- record == null || record.length == 0 ");
+        		alphaTag = null;
+        		number = null;
+				email = null;
+				additionalNumber = null;
+        		return;
+        	}
+        	
             alphaTag = IccUtils.adnStringFieldToString(
                             record, 0, record.length - FOOTER_SIZE_BYTES);
 
@@ -311,13 +346,15 @@ public class AdnRecord implements Parcelable {
 
             extRecord = 0xff & record[record.length - 1];
 
-            emails = null;
+            email = null;
+            additionalNumber = null;
 
         } catch (RuntimeException ex) {
             Log.w(LOG_TAG, "Error parsing AdnRecord", ex);
             number = "";
             alphaTag = "";
-            emails = null;
+            email = null;
+            additionalNumber = null;
         }
     }
 }

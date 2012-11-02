@@ -212,15 +212,17 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
                 int recNum = record[mEmailTagNumberInIap];
 
                 if (recNum != -1) {
-                    String[] emails = new String[1];
+                    //String[] emails = new String[1];
                     // SIM record numbers are 1 based
-                    emails[0] = readEmailRecord(recNum - 1);
+                    //emails[0] = readEmailRecord(recNum - 1);
+					String email = readEmailRecord(recNum - 1);
+					
                     AdnRecord rec = mPhoneBookRecords.get(i);
                     if (rec != null) {
-                        rec.setEmails(emails);
+                        rec.setEmail(email);
                     } else {
                         // might be a record with only email
-                        rec = new AdnRecord("", "", emails);
+                        rec = new AdnRecord("", "", email);
                     }
                     mPhoneBookRecords.set(i, rec);
                 }
@@ -250,7 +252,8 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
 
             String[] emails = new String[emailList.size()];
             System.arraycopy(emailList.toArray(), 0, emails, 0, emailList.size());
-            rec.setEmails(emails);
+            //rec.setEmails(emails);
+			rec.setEmail(emails[0]);
             mPhoneBookRecords.set(i, rec);
         }
     }
