@@ -32,14 +32,15 @@ package com.android.internal.telephony.msim;
 
 import java.util.HashMap;
 import java.util.regex.PatternSyntaxException;
-
+import android.content.ActivityNotFoundException;
 import com.android.internal.telephony.CommandsInterface;
 import com.android.internal.telephony.CommandException;
 import com.android.internal.telephony.uicc.UiccController;
 import com.android.internal.telephony.msim.Subscription.SubscriptionStatus;
 import com.android.internal.telephony.MSimConstants;
 import com.android.internal.telephony.MSimConstants.CardUnavailableReason;
-
+import com.android.internal.telephony.CallManager;
+import android.telephony.MSimTelephonyManager;
 import android.content.Context;
 import android.content.Intent;
 import android.os.AsyncResult;
@@ -51,6 +52,7 @@ import android.os.SystemProperties;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
+import com.android.internal.telephony.Phone;
 
 /**
  * Keep track of all the subscription related informations.
@@ -122,6 +124,9 @@ public class SubscriptionManager extends Handler {
     private static final int EVENT_ALL_DATA_DISCONNECTED = 8;
     private static final int EVENT_RADIO_ON = 9;
     private static final int EVENT_RADIO_OFF_OR_NOT_AVAILABLE = 10;
+    private static final int EVENT_EMER_CALL_END = 12;
+    private static final int EVENT_SET_PREFERRED_NETWORK_TYPE = 13;
+    private static final int EVENT_GET_PREFERRED_NETWORK_TYPE = 14;
 
 
     // Set Subscription Return status
@@ -343,6 +348,14 @@ public class SubscriptionManager extends Handler {
                 processAllDataDisconnected((AsyncResult)msg.obj);
                 break;
 
+            case EVENT_EMER_CALL_END:
+                Log.d(LOG_TAG, "EVENT_EMER_CALL_END, set uicc subscription");
+                CallManager.getInstance().unregisterForDisconnect(this);
+                if (!mSetSubscriptionInProgress && isAllRadioOn() && isAllCardsInfoAvailable()) {
+                    processActivateRequests();
+                }
+                break;
+
             default:
                 break;
         }
@@ -492,6 +505,49 @@ public class SubscriptionManager extends Handler {
                     mSetDdsRequired = false;
                 }
             }
+//            notifySubscriptionActivated(subId);
+        } else if (actStatus == SUB_STATUS_DEACTIVATED) {
+            // Subscription is deactivated from below layers.
+            // In case if this is DDS subscription, then wait for the all data disconnected
+            // indication from the lower layers to mark the subscription as deactivated.
+            if (subId == mCurrentDds) {
+                logd("Register for the all data disconnect");
+                MSimProxyManager.getInstance().registerForAllDataDisconnected(subId, this,
+                        EVENT_ALL_DATA_DISCONNECTED, new Integer(subId));
+            } else {
+                resetCurrentSubscription(SubscriptionId.values()[subId]);
+                updateSubPreferences();
+//                notifySubscriptionDeactivated(subId);
+            }
+        } else {
+            logd("handleSubscriptionStatusChanged INVALID");
+        }
+    }
+    
+    //this method is a fix for processSubscriptionStatusChanged. EVENT_SET_UICC_SUBSCRIPTION_DONE is not supported, 
+    //so processSubscriptionStatusChanged will not be invoked as a callback. This leads to some card status issue
+    private void processSubscriptionAfterSetUiccSubscription(Integer subId, int actStatus) {
+        logd("processSubscriptionAfterSetUiccSubscription sub = " + subId
+                + " actStatus = " + actStatus);
+
+        if (!mRadioOn[subId]) {
+           logd("processSubscriptionAfterSetUiccSubscription: Radio Not Available on subId = " + subId);
+           return;
+        }
+
+        updateSubscriptionReadiness(subId, (actStatus == SUB_STATUS_ACTIVATED));
+        if (actStatus == SUB_STATUS_ACTIVATED) { // Subscription Activated
+            // Shall update the DDS here
+            if (mSetDdsRequired) {
+                if (subId == mQueuedDds) {
+                    logd("setDataSubscription on " + mQueuedDds);
+                    // Set mQueuedDds so that when the set data sub src is done, it will
+                    // update the system property and enable the data connectivity.
+                    //mQueuedDds = mCurrentDds;
+                    setDataSubscription(mQueuedDds,null);
+                    mSetDdsRequired = false;
+                }
+            }
             notifySubscriptionActivated(subId);
         } else if (actStatus == SUB_STATUS_DEACTIVATED) {
             // Subscription is deactivated from below layers.
@@ -631,14 +687,15 @@ public class SubscriptionManager extends Handler {
                 subStatus,
                 cause);
         // do not saveUserPreferredSubscription in case of failure
-        if (ar.exception == null) {
+        //if (ar.exception == null) {
+        //just save, because EVENT_SET_UICC_SUBSCRIPTION_DONE is unsupported, will always return with exception
             saveUserPreferredSubscription(setSubParam.subId,
                     getCurrentSubscription(SubscriptionId.values()[setSubParam.subId]));
-        } else {
+        /*} else {
             // Failure case: update the subscription readiness properly.
             updateSubscriptionReadiness(setSubParam.subId,
                     (subStatus == SubscriptionStatus.SUB_ACTIVATED));
-        }
+        }*/
 
         mSubResult[setSubParam.subId] = cause;
 
@@ -656,6 +713,21 @@ public class SubscriptionManager extends Handler {
                         //new AsyncResult(null, getSetSubscriptionResults(), null));
             }
         }
+        
+        //call this method instead of EVENT_SUBSCRIPTION_STATUS_CHANGED's callback
+        int mActStatus = -1;
+        if(setSubParam.subStatus == SubscriptionStatus.SUB_ACTIVATE)
+        {
+        	mActStatus = 1;
+        	
+        }else if(setSubParam.subStatus == SubscriptionStatus.SUB_DEACTIVATE)
+        {
+        	mActStatus = 0;
+        	
+        }
+        
+        processSubscriptionAfterSetUiccSubscription(Integer.valueOf(setSubParam.subId),mActStatus);
+        
     }
 
     /**
@@ -754,6 +826,12 @@ public class SubscriptionManager extends Handler {
         int availableCards = 0;
         mAllCardsStatusAvailable = true;
 
+        if (CallManager.getInstance().getState() != Phone.State.IDLE) {
+            logd("processAllCardsInfoAvailable: has an emergency call, wait until it is over");
+            CallManager.getInstance().registerForDisconnect(this, EVENT_EMER_CALL_END, null);
+            return;
+        }
+
         for (int i = 0; i < MSimConstants.RIL_MAX_CARDS; i++) {
             if (mCardInfoAvailable[i] || mCardSubMgr.isCardAbsentOrError(i)) {
                 availableCards++;
@@ -765,14 +843,24 @@ public class SubscriptionManager extends Handler {
             processActivateRequests();
         }
 
-        if (isNewCardAvailable()) {
+        //when dual sim mode and card change, show card change prompt
+        if (MSimTelephonyManager.getDefault().isMultiSimEnabled() && isCardChanaged()) {
+            logd("goto activity that show card has changed!");
+            try {
+                Intent intent = new Intent("android.intent.action.CARD_CHANGED");
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                mContext.startActivity(intent);
+            } catch(ActivityNotFoundException e) {
+                logd("not found activity that deal with android.intent.action.CARD_CHANGED");
+            }
+        }
+        
+        
+       /* if (isNewCardAvailable()) {
             // NEW CARDs Available!!!
             // Notify the USER HERE!!!
             notifyNewCardsAvailable();
-            for (int i = 0; i < mIsNewCard.length; i++) {
-                mIsNewCard[i] = false;
-            }
-        }
+        }*/
     }
 
     /**
@@ -795,65 +883,162 @@ public class SubscriptionManager extends Handler {
         // this card.  If there is any, and which are not yet activated,
         // activate them!
         SubscriptionData cardSubInfo = mCardSubMgr.getCardSubscriptions(cardIndex);
+        Subscription userSub = mUserPrefSubs.subscription[cardIndex];
 
         logd("processCardInfoAvailable: cardIndex = " + cardIndex
                 + "\n Card Sub Info = " + cardSubInfo);
 
-        Subscription userSub = mUserPrefSubs.subscription[cardIndex];
-        int subId = userSub.subId;
-        Subscription currentSub = getCurrentSubscription(SubscriptionId.values()[subId]);
+        // If this is a new card(no user preferred subscriptions are from
+        // this card), then notify a prompt to user.  Let user select
+        // the subscriptions from new card!
+        mIsNewCard [cardIndex] = true;
+        if (cardSubInfo.hasSubscription(userSub)) {
+            mIsNewCard[cardIndex] = false;
 
-        logd("processCardInfoAvailable: subId = " + subId
-                + "\n user pref sub = " + userSub
-                + "\n current sub   = " + currentSub);
+            int subId = cardIndex;
+            Subscription currentSub = getCurrentSubscription(SubscriptionId.values()[subId]);
 
-        if ((userSub.subStatus == SubscriptionStatus.SUB_ACTIVATED)
-                && (currentSub.subStatus != SubscriptionStatus.SUB_ACTIVATED)
-                && (cardSubInfo.hasSubscription(userSub))
-                && !isPresentInActivatePendingList(userSub)){
-            logd("processCardInfoAvailable: subId = " + subId + " need to activate!!!");
+            logd("processCardInfoAvailable: subId = " + subId
+                    + "\n user pref sub = " + userSub
+                    + "\n current sub   = " + currentSub);
 
-            // Need to activate this Subscription!!! - userSub.subId
-            // Push to the queue, so that start the SET_UICC_SUBSCRIPTION
-            // only when the both cards are ready.
+            // TODO Need to check if this subscription is already in the pending list!
+            // If already there, no need to add again!
+
             Subscription sub = new Subscription();
             sub.copyFrom(cardSubInfo.getSubscription(userSub));
             sub.slotId = cardIndex;
             sub.subId = subId;
-            sub.subStatus = SubscriptionStatus.SUB_ACTIVATE;
-            mActivatePending.put(SubscriptionId.values()[subId], sub);
-        }
+            if (((mUserPrefSubs.subscription[subId].subStatus == SubscriptionStatus.SUB_ACTIVATED)
+                || (mUserPrefSubs.subscription[subId].subStatus == SubscriptionStatus.SUB_INVALID))
+                && (currentSub.subStatus != SubscriptionStatus.SUB_ACTIVATED)) {
+                // Need to activate this Subscription!!! - userSub.subId
+                // Push to the queue, so that start the SET_UICC_SUBSCRIPTION
+                // only when the both cards are ready.
+                logd("processCardInfoAvailable --DEBUG--: subId = "
+                     + subId + " need to activate!!!");
 
-        // If this is a new card(no user preferred subscriptions are from
-        // this card), then notify a prompt to user.  Let user select
-        // the subscriptions from new card!
-        if (cardSubInfo.hasSubscription(userSub)) {
-            mIsNewCard[cardIndex] = false;
-        } else {
-            mIsNewCard [cardIndex] = true;
+                sub.subStatus = SubscriptionStatus.SUB_ACTIVATE;
+                mActivatePending.put(SubscriptionId.values()[subId], sub);
+            } else if ((mUserPrefSubs.subscription[subId].subStatus == SubscriptionStatus.SUB_DEACTIVATED)
+                       && (currentSub.subStatus != SubscriptionStatus.SUB_DEACTIVATED)) {
+                //if the subscription is deactivated, should set card info to current subscription
+                sub.subStatus = SubscriptionStatus.SUB_DEACTIVATED;
+                currentSub.copyFrom(sub);
+            }
         }
         logd("processCardInfoAvailable: mIsNewCard [" + cardIndex + "] = "
                 + mIsNewCard [cardIndex]);
+        
+        final int cardIndexClone = cardIndex;
+        
+        new Thread(new Runnable() {
+			
+			@Override
+			public void run() {
+				
+						
+					try {
+						Thread.sleep(2000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+					Log.d(LOG_TAG, "waiting for card1LOADED");
+					
+				
+				/*try {
+					//gsm.sim0.cardmode maybe set a little late, so here we wait for a while
+					Thread.sleep(2000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}*/
+				
+				boolean doubleModeCard = false;
+				//only process this for slot_0
+				if(cardIndexClone == 0)
+				{
+					//check card type
+					String cardType = SystemProperties.get("gsm.sim0.cardmode", "");
+					Log.d(LOG_TAG, "cardType : " + cardType);
+					
+					if(cardType.equalsIgnoreCase("2") || cardType.equalsIgnoreCase("4") )
+					{
+						doubleModeCard = true;
+						Log.d(LOG_TAG, "doubleModeCard : " + String.valueOf(doubleModeCard));
+					}
+					
+					//if single CDMA type card inserted or a new card inserted, we should restore this property
+					if(!doubleModeCard || mIsNewCard [cardIndexClone])
+					{
+						SystemProperties.set("persist.radio.networkmode", "0");
+						
+					}
+					
+				}
+				
+				//network mode choice dialog can be displayed only when card 1 not changed
+				//also the network mode is GSM at last time
+				//change network mode in Settings, which lead to reinit, then we should not display network mode choice
+				Log.d(LOG_TAG, "networkModeChangedBySettings : " + String.valueOf(networkModeChangedBySettings));
+				
+				if(!mIsNewCard[0] && SystemProperties.getInt("persist.radio.networkmode", 0) == 1 && doubleModeCard && !networkModeChangedBySettings)
+				{
+					try {
+						Thread.sleep(25000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+					
+					logd("card in SLOT_1 not changed and GSM is selected at last time");
+					Intent intent = new Intent("android.intent.action.BootNetworkChoiceActivity");
+					intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+					mContext.startActivity(intent); 
+					
+				}
+				
+				
+			}
+		}).start();
 
-        if (!isAllCardsInfoAvailable()) {
-            logd("All cards info not available!! Waiting for all info before processing");
+        if (mIsNewCard [cardIndex]) {
+            // NEW CARDs Available, notify the USER HERE!!!
+            //notifyNewCardsAvailable();
+
+            // !!! HERE we set the default app and activate it !!!
+            // Need to activate this Subscription!!! - userSub.subId
+            // Push to the queue, so that start the SET_UICC_SUBSCRIPTION
+            // only when the both cards are ready.
+            Subscription newSub = new Subscription();
+            int appIndex = getAppIndexByMode(cardIndex, getPreferredMode(cardIndex));
+            newSub.copyFrom(cardSubInfo.subscription[appIndex]);
+            newSub.slotId = cardIndex;
+            // !!! HERE force slotId = subId
+            newSub.subId = cardIndex;
+            newSub.subStatus = SubscriptionStatus.SUB_ACTIVATE;
+            setDefaultAppIndex(newSub);
+
+            mActivatePending.put(SubscriptionId.values()[cardIndex], newSub);
+            mIsNewCard[cardIndex] = false;
+        }
+
+        if(mCardShouldEnable[0] == true && mCardShouldEnable[1] == true)
+        {
+        	if (!isAllCardsInfoAvailable()) {
+        		logd("All cards info not available!! Waiting for all info before processing");
+        		return;
+        	}
+        	
+        }
+         //Airplane mode emergency call, need to wait until call is over,
+        if (CallManager.getInstance().getState() != Phone.State.IDLE) {
+            logd("processCardInfoAvailable: has an emergency call, wait until it is over");
+            CallManager.getInstance().registerForDisconnect(this, EVENT_EMER_CALL_END, null);
             return;
         }
 
-        logd("processCardInfoAvailable: mSetSubscriptionInProgress = "
-                + mSetSubscriptionInProgress);
-
+        logd("--DEBUG--: processCardInfoAvailable: " + mSetSubscriptionInProgress);
         if (!mSetSubscriptionInProgress) {
             processActivateRequests();
-        }
-
-        if (isNewCardAvailable()) {
-            // NEW CARDs Available!!!
-            // Notify the USER HERE!!!
-            notifyNewCardsAvailable();
-            for (int i = 0; i < mIsNewCard.length; i++) {
-                mIsNewCard[i] = false;
-            }
         }
     }
 
@@ -1104,13 +1289,13 @@ public class SubscriptionManager extends Handler {
                  + mSetSubscriptionInProgress
                  + " mSetSubsModeRequired = " + mSetSubsModeRequired);
         if (!mSetSubscriptionInProgress) {
-            if (mSetSubsModeRequired) {
+            /*if (mSetSubsModeRequired) {
                 mSetSubscriptionInProgress  = setSubscriptionMode();
                 if (mSetSubscriptionInProgress) {
                     mSetSubsModeRequired = false;
                 }
                 return;
-            }
+            }*/
             mSetSubscriptionInProgress = startNextPendingActivateRequests();
         }
     }
@@ -1258,6 +1443,7 @@ public class SubscriptionManager extends Handler {
 
     public boolean isSubActive(int subscription) {
         Subscription currentSelSub = getCurrentSubscription(subscription);
+        loge("setSubscriptionMode isSubActive currentSelSub.subStatus = " + currentSelSub.subStatus);
         return (currentSelSub.subStatus == SubscriptionStatus.SUB_ACTIVATED);
     }
 
@@ -1605,6 +1791,26 @@ public class SubscriptionManager extends Handler {
 
             logd("getUserPreferredSubs: mUserPrefSubs.subscription[" + i + "] = "
                     + mUserPrefSubs.subscription[i]);
+            
+            if(mUserPrefSubs.subscription[0].subStatus == SubscriptionStatus.SUB_DEACTIVATED)
+            {
+            	mCardShouldEnable[0] = false;
+            	
+            }else
+            {
+            	mCardShouldEnable[0] = true;
+            	
+            }
+            
+            if(mUserPrefSubs.subscription[1].subStatus == SubscriptionStatus.SUB_DEACTIVATED)
+            {
+            	mCardShouldEnable[1] = false;
+            	
+            }else
+            {
+            	mCardShouldEnable[1] = true;
+            	
+            }
         }
     }
 
