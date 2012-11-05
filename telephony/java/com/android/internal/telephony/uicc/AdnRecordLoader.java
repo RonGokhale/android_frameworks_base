@@ -18,6 +18,7 @@ package com.android.internal.telephony.uicc;
 
 import java.util.ArrayList;
 
+import com.android.internal.telephony.gsm.UsimPhoneBookManager;
 import android.os.AsyncResult;
 import android.os.Handler;
 import android.os.Looper;
@@ -243,8 +244,22 @@ public class AdnRecordLoader extends Handler {
                     result = adns;
                     pendingExtLoads = 0;
 
+Log.i("test", "UsimPhoneBookManager.tempNumRec == " + UsimPhoneBookManager.tempNumRec);
                     for(int i = 0, s = datas.size() ; i < s ; i++) {
-                        adn = new AdnRecord(ef, 1 + i, datas.get(i));
+/*2012-02-28-RIL-zhouyi-get correct ADN record index according to ADN file number-Start*/
+                    	if(UsimPhoneBookManager.tempNumRec == 0)
+                    	{
+                    		adn = new AdnRecord(ef, 1 + i, datas.get(i));
+                    	}else if(UsimPhoneBookManager.tempNumRec == 1)
+                    	{
+                    		adn = new AdnRecord(ef, 251 + i, datas.get(i));
+                    	}else
+                    	{
+                    		//just for safety, at least we return the results if the UsimPhoneBookManager.tempNumRec is invalid
+                    		adn = new AdnRecord(ef, 1 + i, datas.get(i));
+                    	}
+/*2012-02-28-RIL-zhouyi-get correct ADN record index according to ADN file number-End*/
+                        //adn = new AdnRecord(ef, 1 + i, datas.get(i));
                         adns.add(adn);
 
                         if (adn.hasExtendedRecord()) {
