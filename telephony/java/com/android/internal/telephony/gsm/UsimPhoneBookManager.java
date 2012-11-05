@@ -21,6 +21,8 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
+
+import android.telephony.PhoneNumberUtils;
 import com.android.internal.telephony.PhoneBase;
 import com.android.internal.telephony.uicc.AdnRecord;
 import com.android.internal.telephony.uicc.AdnRecordCache;
@@ -30,6 +32,7 @@ import com.android.internal.telephony.uicc.IccUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -41,6 +44,9 @@ import java.util.Map;
 public class UsimPhoneBookManager extends Handler implements IccConstants {
     private static final String LOG_TAG = "GSM";
     private static final boolean DBG = true;
+    
+    public static int tempNumRec = 0;
+    
     private PbrFile mPbrFile;
     private Boolean mIsPbrPresent;
     private IccFileHandler mFh;
@@ -48,9 +54,17 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
     private Object mLock = new Object();
     private ArrayList<AdnRecord> mPhoneBookRecords;
     private boolean mEmailPresentInIap = false;
+    private boolean mAnrPresentInIap = false;
+    private boolean mSnePresentInIap = false;
     private int mEmailTagNumberInIap = 0;
+    private int mAnrTagNumberInIap   = 0;
+	private int availableEmailSlotNumber = 0;
+	private boolean EmailSlotFound = false;
+	private ArrayList<Integer> existEmailRecord = new ArrayList<Integer>();
     private ArrayList<byte[]> mIapFileRecord;
     private ArrayList<byte[]> mEmailFileRecord;
+ 
+    private ArrayList<AnrFile> mAnrFile;
     private Map<Integer, ArrayList<String>> mEmailsForAdnRec;
     private boolean mRefreshCache = false;
 
@@ -58,6 +72,8 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
     private static final int EVENT_USIM_ADN_LOAD_DONE = 2;
     private static final int EVENT_IAP_LOAD_DONE = 3;
     private static final int EVENT_EMAIL_LOAD_DONE = 4;
+
+    private static final int EVENT_ANR_LOAD_DONE        = 6;
 
     private static final int USIM_TYPE1_TAG   = 0xA8;
     private static final int USIM_TYPE2_TAG   = 0xA9;
@@ -115,9 +131,17 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
             if (mPbrFile == null) return null;
 
             int numRecs = mPbrFile.mFileIds.size();
+            
+            
+            Log.e(LOG_TAG, "loadEfFilesFromUsim numRecs: "+numRecs);
             for (int i = 0; i < numRecs; i++) {
+/*2012-02-28-RIL-zhouyi-supply ADN file number to AdnRecordLoader to construct ADN record-Start*/
+            	tempNumRec = i;	//load for two times, and the results construction in AdnRecordLoader will use this to decide index from 0 or from 250
+/*2012-02-28-RIL-zhouyi-supply ADN file number to AdnRecordLoader to construct ADN record-End*/
                 readAdnFileAndWait(i);
                 readEmailFileAndWait(i);
+                readAnrFileAndWait(i);
+                /*2012-03-01-RIL-zhouyi-email and ANR is not needed any more-End*/
             }
             // All EF files are loaded, post the response.
         }
@@ -152,13 +176,16 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
         fileIds = mPbrFile.mFileIds.get(recNum);
         if (fileIds == null) return;
 
+        Log.e(LOG_TAG, "readEmailFileAndWait");
+
         if (fileIds.containsKey(USIM_EFEMAIL_TAG)) {
             int efid = fileIds.get(USIM_EFEMAIL_TAG);
             // Check if the EFEmail is a Type 1 file or a type 2 file.
             // If mEmailPresentInIap is true, its a type 2 file.
             // So we read the IAP file and then read the email records.
             // instead of reading directly.
-            if (mEmailPresentInIap) {
+
+        if (mEmailPresentInIap && mIapFileRecord == null) {
                 readIapFileAndWait(fileIds.get(USIM_EFIAP_TAG));
                 if (mIapFileRecord == null) {
                     Log.e(LOG_TAG, "Error: IAP file is empty");
@@ -166,6 +193,7 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
                 }
             }
             // Read the EFEmail file.
+            Log.e(LOG_TAG, "readEmailFileAndWait EVENT_EMAIL_LOAD_DONE");
             mFh.loadEFLinearFixedAll(fileIds.get(USIM_EFEMAIL_TAG),
                     obtainMessage(EVENT_EMAIL_LOAD_DONE));
             try {
@@ -180,7 +208,52 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
             }
             updatePhoneAdnRecord();
         }
+    }
 
+    /**
+     * Read EF_ANR record. During reading, object is locked.
+     * <br>After reading completion, call handleMessage() method with EVENT_ANR_LOAD_DONE. 
+     * @param recNum.
+     */
+    private void readAnrFileAndWait(int recNum) {
+        Map <Integer,Integer> fileIds;
+        fileIds = mPbrFile.mFileIds.get(recNum);
+        if (fileIds == null) return;
+
+        if (fileIds.containsKey(USIM_EFANR_TAG)) {
+            int efid = fileIds.get(USIM_EFANR_TAG);
+            // If EF_ANR is Type 2 EF, read EF_IAP first.
+            if (DBG) {
+                if (mAnrPresentInIap) {
+                    log("EF_ANR in EF_IAP. EF_ANR is Type 2 EF.");
+                } else {
+                    log("EF_ANR is Type 1 EF.");
+                }
+            }
+
+            if (mAnrPresentInIap && mIapFileRecord == null) {
+                readIapFileAndWait(fileIds.get(USIM_EFIAP_TAG));
+                if (mIapFileRecord == null) {
+                    Log.e(LOG_TAG, "Error: IAP file is empty");
+                    return;
+                }
+            }
+
+            //readEfFileAndWait(recNum, USIM_EFANR_TAG, EVENT_ANR_LOAD_DONE);
+            mFh.loadEFLinearFixedAll(fileIds.get(USIM_EFANR_TAG),
+                        obtainMessage(EVENT_ANR_LOAD_DONE));
+            try {
+                mLock.wait();
+            } catch (InterruptedException e) {
+                Log.e(LOG_TAG, "Interrupted Exception in readAnrFileAndWait");
+            }
+
+            if ((mAnrFile == null)/*||((mAnrFileRecord == null))*/) {
+                Log.e(LOG_TAG, "Error: ANR file is empty");
+                return;
+            }
+            addAdditionalNumberToAdnRecord(recNum);
+        }
     }
 
     private void readIapFileAndWait(int efid) {
@@ -191,6 +264,93 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
             Log.e(LOG_TAG, "Interrupted Exception in readIapFileAndWait");
         }
     }
+   /**
+     * Add EF_ANR record to list of AdnRecordEx.
+     * @param recNum
+     */
+    private void addAdditionalNumberToAdnRecord(int recNum) {
+        if (mAnrFile == null) {
+            return;
+        }
+
+        int numAdnRecs = mPhoneBookRecords.size();
+        log("addAdditionalNumberToAdnRecord--numAdnRecs = " + numAdnRecs);
+        if ((mIapFileRecord != null)&&(mAnrPresentInIap)) {
+            // EF_ANR is Type 2.
+            for (int i = 0; i < numAdnRecs; i++) {
+                byte[] record = null;
+                try {
+                    record = mIapFileRecord.get(i);
+                } catch (IndexOutOfBoundsException e) {
+                    Log.e(LOG_TAG, "Error: Improper ICC card: No IAP record for ADN, continuing");
+                    break;
+                }
+
+                int anrRecNum = record[mAnrTagNumberInIap];
+                if ((anrRecNum - 1) > mAnrFile.size()) {
+                    continue;
+                }
+
+                if (anrRecNum != -1) {
+                    // SIM record numbers are 1 based
+                    AdnRecord rec = mPhoneBookRecords.get(i);
+                    if (rec == null) {
+                        rec = new AdnRecord(0, 0, "", "", null);
+                    }
+                    // Parse EF_ANR record and set to AdnRecordEx object.
+                    String additionalNumber = mAnrFile.get(anrRecNum - 1).number;
+                    //int extRecNum = mAnrFile.get(anrRecNum - 1).extRecNum;
+
+                    //rec.addAdditionalNumber(i, additionalNumber);
+                    //rec.addAnrExtRecordNum(i, extRecNum);
+					rec.setAdditionalNumber(additionalNumber);
+
+                    // might be a record with only additional number...
+                    mPhoneBookRecords.set(i, rec);
+                }
+            }
+        } else {
+            // EF_ANR is Type 1.
+            log("addAdditionalNumberToAdnRecord--recNum = " + recNum);
+            int i = 0;
+            if((recNum == 1)&&(numAdnRecs > 250)){
+                i = 250;
+            }
+            for ( ; i < numAdnRecs; i++) {
+                AdnRecord rec = null;
+                try {
+                    rec = mPhoneBookRecords.get(i);
+                    int n = 0;
+                    // get additional number and extension record number.
+                    for (AnrFile anr : mAnrFile) {
+                        // SIM record numbers are 1 based
+                       // log("i = "+i+" anr = " + anr.toString() );                        
+                        if(anr.adnNumRec != -1) {
+                            if ((anr.adnNumRec - 1) == i) {
+							rec.setAdditionalNumber(anr.number);
+                                //rec.addAdditionalNumber(n, anr.number);
+                                //rec.addAnrExtRecordNum(n, anr.extRecNum);
+                            }
+                        }
+                        n++;
+                    }
+                } catch (IndexOutOfBoundsException e) {
+                    break;
+                }
+                if (rec == null) {
+                    continue;
+                }
+
+                mPhoneBookRecords.set(i, rec);
+            }
+        }
+
+        // Read Ext1 record For EF_ANR.
+        //readExt1ForAnrFileAndWait(recNum);
+        // Lock is canceled after EVENT_ANR_EXT1_LOAD_DONE reception.
+    }
+
+      
 
     private void updatePhoneAdnRecord() {
         if (mEmailFileRecord == null) return;
@@ -219,14 +379,27 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
 					
                     AdnRecord rec = mPhoneBookRecords.get(i);
                     if (rec != null) {
+                        Log.e(LOG_TAG, "rec != null");
+/*2012-02-14-RIL-zhouyi-if the name and number is empty, we should not add any emails-Start*/
+                        if(rec.getAlphaTag() == "" && rec.getNumber() == "")
+                        {
+                        	rec.setEmail(null);
+                        }else{
                         rec.setEmail(email);
+                        	
+                        }
                     } else {
-                        // might be a record with only email
-                        rec = new AdnRecord("", "", email);
+                        Log.e(LOG_TAG, "rec == null");
+                        
+                       // rec = new AdnRecord("", "", email);
+                         rec = new AdnRecord("", "", null);
                     }
+                      
+/*2012-02-14-RIL-zhouyi-if the name and number is empty, we should not add any emails-End*/
                     mPhoneBookRecords.set(i, rec);
                 }
             }
+            return;
         }
 
         // ICC cards can be made such that they have an IAP file but all
@@ -363,6 +536,26 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
             ar = (AsyncResult) msg.obj;
             if (ar.exception == null) {
                 mIapFileRecord = ((ArrayList<byte[]>)ar.result);
+
+		/*2012-02-16-RIL-zhouyi-pick email rec number out of IAP record and store-Start*/
+                Iterator<byte[]> it = mIapFileRecord.iterator();
+                
+                existEmailRecord.clear();//every time clear the record after reloading the IAP
+                log("mIapFileRecord.size(): " + mIapFileRecord.size());
+                while(it.hasNext())
+                {
+                	byte[] iapRec = it.next();
+                	int recNum = iapRec[mEmailTagNumberInIap];
+                	log("all IAP record-recNum: " + recNum);
+                    if(recNum != -1)
+                    {
+                    	log("recNum with email : " +  "recNum == " + recNum);
+                    	existEmailRecord.add(recNum);
+                    }
+                }
+                
+           /*2012-02-16-RIL-zhouyi-pick email rec number out of IAP record and store-End*/
+
             }
             synchronized (mLock) {
                 mLock.notify();
@@ -372,13 +565,79 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
             log("Loading USIM Email records done");
             ar = (AsyncResult) msg.obj;
             if (ar.exception == null) {
-                mEmailFileRecord = ((ArrayList<byte[]>)ar.result);
+                if(null == mEmailFileRecord){
+                    mEmailFileRecord = ((ArrayList<byte[]>)ar.result);
+                }
+            }
+
+            if (DBG && mEmailFileRecord != null) {
+                int i = 0;
+                for (byte[] record : mEmailFileRecord) {
+                    log("EF_EMAIL[" + i + "] : " + IccUtils.bytesToHexString(record));
+                    i++;
+                }
             }
 
             synchronized (mLock) {
                 mLock.notify();
             }
             break;
+      case EVENT_ANR_LOAD_DONE:
+            log("Loading USIM ANR records done");
+            ar = (AsyncResult) msg.obj;
+            if (ar.exception == null) {
+                createAnrFile((ArrayList<byte[]>)ar.result);
+            }
+            synchronized (mLock) {
+                mLock.notify();
+            }
+            break;
+        }
+    }
+
+    private void createAnrFile(ArrayList<byte[]> records) {
+        int i = 0;
+        if (records == null) {
+            return;
+        }
+
+        mAnrFile = new ArrayList<AnrFile>();
+        for (byte[] record : records) {
+            if (DBG) {
+                //log("EF_ANR[" + i + "] : " + IccUtils.bytesToHexString(record));
+            }
+            mAnrFile.add(new AnrFile(record));
+            i++;
+        }
+    }
+
+    /**
+     * ** This New Class Is PMC Customized Coding **<br>
+     * This class implements parsing and holding EF_ANR records.
+     */
+    private class AnrFile {
+        String number;
+        int adnNumRec = 0xFF;
+        int extRecNum = 0;
+
+        AnrFile(byte[] record) {
+            try {
+                // Length value present in the 2nd byte From first.
+                int numberLength = record[1] & 0xff;
+                number = PhoneNumberUtils.calledPartyBCDToString(record, 2, numberLength);
+
+                // Adn Record Number present in the Last 1byte.
+                //adnNumRec = 0xff & record[record.length - 1];
+                adnNumRec = 0xff & record[0];
+                // Extension Record Identifier present in the 15th byte.
+                extRecNum = 0xff & record[14];
+
+            } catch (RuntimeException ex) {
+                Log.w(LOG_TAG, "Error parsing AnrRecord", ex);
+            }
+        }
+        public String toString() {
+            return "AnrFile: number :" + number + "  adnNumber: "+ adnNumRec;
         }
     }
 
@@ -423,9 +682,14 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
             int tagNumberWithinParentTag = 0;
             do {
                 tag = tlv.getTag();
-                if (parentTag == USIM_TYPE2_TAG && tag == USIM_EFEMAIL_TAG) {
-                    mEmailPresentInIap = true;
-                    mEmailTagNumberInIap = tagNumberWithinParentTag;
+                if (parentTag == USIM_TYPE2_TAG) {
+                    if (tag == USIM_EFEMAIL_TAG) {
+                        mEmailPresentInIap = true;
+                        mEmailTagNumberInIap = tagNumberWithinParentTag;
+                    } else if (tag == USIM_EFANR_TAG) {
+                        mAnrPresentInIap = true;
+                        mAnrTagNumberInIap = tagNumberWithinParentTag;
+					}
                 }
                 switch(tag) {
                     case USIM_EFEMAIL_TAG:
