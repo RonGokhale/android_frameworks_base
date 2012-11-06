@@ -39,13 +39,14 @@ import com.android.internal.telephony.uicc.IccConstants;
  */
 public class IccProvider extends ContentProvider {
     private static final String TAG = "IccProvider";
-    private static final boolean DBG = false;
+    private static final boolean DBG = true;
 
 
     protected static final String[] ADDRESS_BOOK_COLUMN_NAMES = new String[] {
         "name",
         "number",
-        "emails",
+        "email",
+		"anr",
         "_id"
     };
 
@@ -55,7 +56,8 @@ public class IccProvider extends ContentProvider {
 
     protected static final String STR_TAG = "tag";
     protected static final String STR_NUMBER = "number";
-    protected static final String STR_EMAILS = "emails";
+    protected static final String STR_EMAILS = "email";
+	protected static final String STR_ANR = "anr";
     protected static final String STR_PIN2 = "pin2";
 
     private static final UriMatcher URL_MATCHER =
@@ -404,15 +406,16 @@ public class IccProvider extends ContentProvider {
      */
     protected void loadRecord(AdnRecord record, MatrixCursor cursor, int id) {
         if (!record.isEmpty()) {
-            Object[] contact = new Object[4];
+            Object[] contact = new Object[5];
             String alphaTag = record.getAlphaTag();
             String number = record.getNumber();
+            String email = record.getEmail();
+            String additionalNumber = record.getAdditionalNumber();
 
-            if (DBG) log("loadRecord: " + alphaTag + ", " + number + ",");
+            if (DBG) log("loadRecord: id = " + id + ", " + alphaTag + ", " + number + "," + email + "," + additionalNumber);
             contact[0] = alphaTag;
             contact[1] = number;
 
-            String email = record.getEmail();
             if (email != null) {
                 //StringBuilder emailString = new StringBuilder();
                 //for (String email: emails) {
@@ -423,7 +426,13 @@ public class IccProvider extends ContentProvider {
                 //contact[2] = emailString.toString();
 				contact[2] = email;
             }
-            contact[3] = id;
+            
+            if(additionalNumber != null)
+            {
+            	contact[3] = additionalNumber;
+            }
+            
+            contact[4] = id;
             cursor.addRow(contact);
         }
     }

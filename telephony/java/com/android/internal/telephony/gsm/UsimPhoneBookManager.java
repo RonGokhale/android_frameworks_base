@@ -604,7 +604,7 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
         mAnrFile = new ArrayList<AnrFile>();
         for (byte[] record : records) {
             if (DBG) {
-                //log("EF_ANR[" + i + "] : " + IccUtils.bytesToHexString(record));
+                log("EF_ANR[" + i + "] : " + IccUtils.bytesToHexString(record));
             }
             mAnrFile.add(new AnrFile(record));
             i++;
