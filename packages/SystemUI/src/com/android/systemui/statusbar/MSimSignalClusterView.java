@@ -22,6 +22,7 @@ package com.android.systemui.statusbar;
 
 import android.content.Context;
 import android.telephony.MSimTelephonyManager;
+import android.telephony.ServiceState;
 import android.telephony.TelephonyManager;
 import android.util.AttributeSet;
 import android.util.Slog;
@@ -34,6 +35,7 @@ import android.widget.LinearLayout;
 import com.android.internal.telephony.MSimConstants;
 import com.android.systemui.statusbar.policy.NetworkController;
 import com.android.systemui.statusbar.policy.MSimNetworkController;
+import com.android.systemui.statusbar.policy.TelephonyIcons;
 
 import com.android.systemui.R;
 
@@ -58,6 +60,9 @@ public class MSimSignalClusterView
     private int mAirplaneIconId = 0;
     private String mWifiDescription, mMobileTypeDescription;
     private String[] mMobileDescription;
+    private boolean[] mMNoSimIconVisiable;
+    private boolean[] mSignalIconVisiable;
+    private ServiceState[] mServiceState;
 
     ViewGroup mWifiGroup, mMobileGroup, mMobileGroupSub2;
     ImageView mWifi, mWifiActivity, mMobile, mMobileActivity, mMobileType, mAirplane;
@@ -81,11 +86,15 @@ public class MSimSignalClusterView
         mMobileTypeId = new int[numPhones];
         mMobileActivityId = new int[numPhones];
         mNoSimIconId = new int[numPhones];
+        mMNoSimIconVisiable = new boolean[numPhones];
+        mSignalIconVisiable = new boolean[numPhones];
         for(int i=0; i < numPhones; i++) {
             mMobileStrengthId[i] = 0;
             mMobileTypeId[i] = 0;
             mMobileActivityId[i] = 0;
             mNoSimIconId[i] = 0;
+            mMNoSimIconVisiable[i] = false;
+            mSignalIconVisiable[i] = false;
         }
     }
 
@@ -152,15 +161,23 @@ public class MSimSignalClusterView
     @Override
     public void setMobileDataIndicators(boolean visible, int strengthIcon, int activityIcon,
             int typeIcon, String contentDescription, String typeContentDescription,
-            int noSimIcon, int subscription) {
+            int noSimIcon, int subscription, ServiceState[] simServiceState) {
         mMobileVisible = visible;
-        mMobileStrengthId[subscription] = strengthIcon;
+        mMobileStrengthId[subscription] = convertStrengthIconIdToCU(strengthIcon, subscription);
         mMobileActivityId[subscription] = activityIcon;
         mMobileTypeId[subscription] = typeIcon;
         mMobileDescription[subscription] = contentDescription;
         mMobileTypeDescription = typeContentDescription;
-        mNoSimIconId[subscription] = noSimIcon;
+        mNoSimIconId[subscription] = convertNoSimIconIdToCU(subscription);
+        mServiceState = simServiceState;
 
+        if (noSimIcon != 0) {
+            mMNoSimIconVisiable[subscription] = true;
+            mSignalIconVisiable[subscription] = false;
+        } else {
+            mMNoSimIconVisiable[subscription] = false;
+            mSignalIconVisiable[subscription] = true;
+        }
         applySubscription(subscription);
     }
 
@@ -199,38 +216,43 @@ public class MSimSignalClusterView
         if (DEBUG) Slog.d(TAG,
                 String.format("wifi: %s sig=%d act=%d",
                 (mWifiVisible ? "VISIBLE" : "GONE"), mWifiStrengthId, mWifiActivityId));
-
+        Slog.d(TAG,"SetMobileDataIndicators MNoSimIconVisiable "+subscription+"="+mMNoSimIconVisiable[subscription]);
         if (mMobileVisible && !mIsAirplaneMode) {
             if (subscription == MSimConstants.SUB1) {
                 mMobileGroup.setVisibility(View.VISIBLE);
                 mMobile.setImageResource(mMobileStrengthId[subscription]);
+                mMobile.setVisibility(mSignalIconVisiable[subscription] ? View.VISIBLE : View.GONE);
                 mMobileGroup.setContentDescription(mMobileTypeDescription + " "
                     + mMobileDescription[subscription]);
                 mMobileActivity.setImageResource(mMobileActivityId[subscription]);
                 mMobileType.setImageResource(mMobileTypeId[subscription]);
                 mMobileType.setVisibility(
-                    !mWifiVisible ? View.VISIBLE : View.GONE);
+                    /*!mWifiVisible ? View.VISIBLE :*/ View.GONE);
                 mNoSimSlot.setImageResource(mNoSimIconId[subscription]);
+                mNoSimSlot.setVisibility(mMNoSimIconVisiable[subscription] ? View.VISIBLE : View.GONE);
             } else {
                 mMobileGroupSub2.setVisibility(View.VISIBLE);
                 mMobileSub2.setImageResource(mMobileStrengthId[subscription]);
+                mMobileSub2.setVisibility(mSignalIconVisiable[subscription] ? View.VISIBLE : View.GONE);
                 mMobileGroupSub2.setContentDescription(mMobileTypeDescription + " "
                     + mMobileDescription[subscription]);
                 mMobileActivitySub2.setImageResource(mMobileActivityId[subscription]);
                 mMobileTypeSub2.setImageResource(mMobileTypeId[subscription]);
                 mMobileTypeSub2.setVisibility(
-                    !mWifiVisible ? View.VISIBLE : View.GONE);
+                   /* !mWifiVisible ? View.VISIBLE :*/ View.GONE);
                 mNoSimSlotSub2.setImageResource(mNoSimIconId[subscription]);
+                mNoSimSlotSub2.setVisibility(mMNoSimIconVisiable[subscription] ? View.VISIBLE : View.GONE);
             }
         } else {
-            if (subscription == 0) {
+            if (!mMobileVisible){
                 mMobileGroup.setVisibility(View.GONE);
-            } else {
                 mMobileGroupSub2.setVisibility(View.GONE);
-            }
+            }     
         }
 
-        if (mIsAirplaneMode) {
+        if (mIsAirplaneMode && (mAirplaneIconId == R.drawable.stat_sys_signal_flightmode)) {
+			mMobileGroup.setVisibility(View.GONE);
+			mMobileGroupSub2.setVisibility(View.GONE);
             mAirplane.setVisibility(View.VISIBLE);
             mAirplane.setImageResource(mAirplaneIconId);
         } else {
@@ -245,7 +267,95 @@ public class MSimSignalClusterView
                 mSpacer.setVisibility(View.GONE);
             }
         }
-
+	}
+    private int convertStrengthIconIdToCU(int orignalId, int subscription) {
+        int level = 0;
+        int inetCondition = 0;
+        switch (orignalId) {
+            case R.drawable.stat_sys_signal_0:
+                level = TelephonyIcons.SIGNAL_LEVEL_0;
+                inetCondition = TelephonyIcons.DATA_CONNECTIVITY_NOT_CONNECTED;
+                break;
+            case R.drawable.stat_sys_signal_1:
+                level = TelephonyIcons.SIGNAL_LEVEL_1;
+                inetCondition = TelephonyIcons.DATA_CONNECTIVITY_NOT_CONNECTED;
+                break;
+            case R.drawable.stat_sys_signal_2:
+                level = TelephonyIcons.SIGNAL_LEVEL_2;
+                inetCondition = TelephonyIcons.DATA_CONNECTIVITY_NOT_CONNECTED;
+                break;
+            case R.drawable.stat_sys_signal_3:
+                level = TelephonyIcons.SIGNAL_LEVEL_3;
+                inetCondition = TelephonyIcons.DATA_CONNECTIVITY_NOT_CONNECTED;
+                break;
+            case R.drawable.stat_sys_signal_4:
+                level = TelephonyIcons.SIGNAL_LEVEL_4;
+                inetCondition = TelephonyIcons.DATA_CONNECTIVITY_NOT_CONNECTED;
+                break;
+            case R.drawable.stat_sys_signal_0_fully:
+                level = TelephonyIcons.SIGNAL_LEVEL_0;
+                inetCondition = TelephonyIcons.DATA_CONNECTIVITY_CONNECTED;
+                break;
+            case R.drawable.stat_sys_signal_1_fully:
+                level = TelephonyIcons.SIGNAL_LEVEL_1;
+                inetCondition = TelephonyIcons.DATA_CONNECTIVITY_CONNECTED;
+                break;
+            case R.drawable.stat_sys_signal_2_fully:
+                level = TelephonyIcons.SIGNAL_LEVEL_2;
+                inetCondition = TelephonyIcons.DATA_CONNECTIVITY_CONNECTED;
+                break;
+            case R.drawable.stat_sys_signal_3_fully:
+                level = TelephonyIcons.SIGNAL_LEVEL_3;
+                inetCondition = TelephonyIcons.DATA_CONNECTIVITY_CONNECTED;
+                break;
+            case R.drawable.stat_sys_signal_4_fully:
+                level = TelephonyIcons.SIGNAL_LEVEL_4;
+                inetCondition = TelephonyIcons.DATA_CONNECTIVITY_CONNECTED;
+                break;
+            case R.drawable.stat_sys_signal_null:
+                return convertSignalNullIconIdToCU(subscription);
+            default:
+                return orignalId;
+        }
+        return getCUSignalStrenthIconId(subscription,inetCondition,level);
     }
+
+    private int convertNoSimIconIdToCU(int subscription) {
+        return TelephonyIcons.MULTI_NO_SIM_CU[subscription];
+    }
+
+    private int convertSignalNullIconIdToCU(int subscription) {
+        return TelephonyIcons.MULTI_SIGNAL_NULL_CU[subscription];
+    }
+
+    private int getCUSignalStrenthIconId(int subscription,
+            int inetCondition, int level) {
+        /* find out radio technology by looking at service state */
+        if (mServiceState == null) {
+            return 0;
+        }
+        switch (mServiceState[subscription].getRadioTechnology()) {
+        case ServiceState.RIL_RADIO_TECHNOLOGY_IS95A:
+        case ServiceState.RIL_RADIO_TECHNOLOGY_IS95B:
+        case ServiceState.RIL_RADIO_TECHNOLOGY_1xRTT:
+        case ServiceState.RIL_RADIO_TECHNOLOGY_GPRS:
+        case ServiceState.RIL_RADIO_TECHNOLOGY_EDGE:
+            return (( mMobileTypeId[subscription] == R.drawable.stat_sys_data_connected_roam) ? TelephonyIcons.MULTI_SIGNAL_IMAGES_R_G[subscription][inetCondition][level] : TelephonyIcons.MULTI_SIGNAL_IMAGES_G[subscription][inetCondition][level]);
+        case ServiceState.RIL_RADIO_TECHNOLOGY_LTE:
+        case ServiceState.RIL_RADIO_TECHNOLOGY_UMTS:
+        case ServiceState.RIL_RADIO_TECHNOLOGY_EVDO_0:
+        case ServiceState.RIL_RADIO_TECHNOLOGY_EVDO_A:
+        case ServiceState.RIL_RADIO_TECHNOLOGY_EVDO_B:
+        case ServiceState.RIL_RADIO_TECHNOLOGY_EHRPD:
+            return (( mMobileTypeId[subscription] == R.drawable.stat_sys_data_connected_roam) ? TelephonyIcons.MULTI_SIGNAL_IMAGES_R_3G[subscription][inetCondition][level] : TelephonyIcons.MULTI_SIGNAL_IMAGES_3G[subscription][inetCondition][level]);
+        case ServiceState.RIL_RADIO_TECHNOLOGY_HSDPA:
+        case ServiceState.RIL_RADIO_TECHNOLOGY_HSUPA:
+        case ServiceState.RIL_RADIO_TECHNOLOGY_HSPA:
+            return (( mMobileTypeId[subscription] == R.drawable.stat_sys_data_connected_roam) ? TelephonyIcons.MULTI_SIGNAL_IMAGES_R_H[subscription][inetCondition][level] : TelephonyIcons.MULTI_SIGNAL_IMAGES_H[subscription][inetCondition][level]);
+        default:
+            return (( mMobileTypeId[subscription] == R.drawable.stat_sys_data_connected_roam) ? TelephonyIcons.MULTI_SIGNAL_IMAGES_R_G[subscription][inetCondition][level] : TelephonyIcons.MULTI_SIGNAL_IMAGES_G[subscription][inetCondition][level]);
+        }
+    }
+
 }
 
