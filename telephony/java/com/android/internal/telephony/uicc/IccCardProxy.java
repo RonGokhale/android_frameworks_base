@@ -652,6 +652,13 @@ public class IccCardProxy extends Handler implements IccCard {
         return false;
     }
 
+    public String getCardType() {
+        if (mUiccApplication != null) {
+            return mUiccApplication.getCardType();
+        }
+        return "UNKNOWN";
+    }
+
     protected void log(String s) {
         Log.d(LOG_TAG, s);
     }

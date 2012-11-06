@@ -127,6 +127,13 @@ public class PhoneSubInfoProxy extends IPhoneSubInfo.Stub {
         return mPhoneSubInfo.getIsimImpu();
     }
 
+    /**
+     * @hide
+     */
+    public String getCardType() {
+        return mPhoneSubInfo.getCardType();
+    }
+
     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         mPhoneSubInfo.dump(fd, pw, args);
     }

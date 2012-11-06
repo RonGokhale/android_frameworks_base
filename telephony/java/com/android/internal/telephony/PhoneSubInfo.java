@@ -189,6 +189,14 @@ public class PhoneSubInfo extends IPhoneSubInfo.Stub {
         }
     }
 
+    /**
+     * @hide
+     */
+    public String getCardType() {
+        mContext.enforceCallingOrSelfPermission(READ_PHONE_STATE, "Requires READ_PHONE_STATE");
+        return ((PhoneBase)mPhone).getUiccApplication().getCardType();
+    }
+
     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         if (mContext.checkCallingOrSelfPermission(android.Manifest.permission.DUMP)
                 != PackageManager.PERMISSION_GRANTED) {

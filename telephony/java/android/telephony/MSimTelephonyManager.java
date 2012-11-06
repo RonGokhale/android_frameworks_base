@@ -122,6 +122,17 @@ public class MSimTelephonyManager {
     }
 
     /**
+     * @hide
+     */
+    public String getCardType() {
+        if (isMultiSimEnabled()) {
+            return getCardType(getPreferredSubscription());
+        }else{
+            return "UNKNOWN";
+        }
+    }
+
+    /**
      * Returns the software version number for the device, for example,
      * the IMEI/SV for GSM phones. Return null if the software version is
      * not available.
@@ -453,6 +464,26 @@ public class MSimTelephonyManager {
     public String getSubscriberId(int subscription) {
         try {
             return getMSimSubscriberInfo().getSubscriberId(subscription);
+        } catch (RemoteException ex) {
+            return null;
+        } catch (NullPointerException ex) {
+            // This could happen before phone restarts due to crashing
+            return null;
+        }
+    }
+    
+    /**
+     * Returns the sim card type for a subscription, for example, USIM or RUIM.
+     * Return null if it is unavailable.
+     * <p>
+     * Requires Permission:
+     *   {@link android.Manifest.permission#READ_PHONE_STATE READ_PHONE_STATE}
+     */
+    /** @hide */
+    public String getCardType(int subscription) {
+        if (!isMultiSimEnabled()) return getCardType();
+        try {
+            return getMSimSubscriberInfo().getCardType(subscription);
         } catch (RemoteException ex) {
             return null;
         } catch (NullPointerException ex) {
