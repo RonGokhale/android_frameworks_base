@@ -446,6 +446,25 @@ public class UiccCardApplication {
         return mAppType;
     }
 
+    public String getCardType() {
+        switch (getType()) {
+            case APPTYPE_UNKNOWN:
+                return "UNKNOWN";
+            case APPTYPE_SIM:
+                return "SIM";
+            case APPTYPE_USIM:
+                return "USIM";
+            case APPTYPE_RUIM:
+                return "RUIM";
+            case APPTYPE_CSIM:
+                return "CSIM";
+            case APPTYPE_ISIM:
+                return "ISIM";
+            default:
+                return "UNKNOWN";
+        }
+    }
+
     public PersoSubState getPersoSubState() {
         return mPersoSubState;
     }

@@ -146,7 +146,7 @@ public abstract class PhoneBase extends Handler implements Phone {
     public AtomicReference<IccRecords> mIccRecords = new AtomicReference<IccRecords>();
     public SmsStorageMonitor mSmsStorageMonitor;
     public SmsUsageMonitor mSmsUsageMonitor;
-    protected AtomicReference<UiccCardApplication> mUiccApplication =
+    public AtomicReference<UiccCardApplication> mUiccApplication =
             new AtomicReference<UiccCardApplication>();
 
     // Key used for storing voice mail count
@@ -727,6 +727,10 @@ public abstract class PhoneBase extends Handler implements Phone {
 
     public UiccCard getUiccCard() {
         return null;
+    }
+
+    public UiccCardApplication getUiccApplication() {
+        return mUiccApplication.get();
     }
 
 
