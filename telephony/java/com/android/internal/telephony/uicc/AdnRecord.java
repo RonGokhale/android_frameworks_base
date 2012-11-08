@@ -41,7 +41,7 @@ public class AdnRecord implements Parcelable {
 
     String alphaTag = null;
     String number = null;
-    String email;
+    String email = null;
     String additionalNumber = null;
     int extRecord = 0xff;
     int efid;                   // or 0 if none
@@ -70,6 +70,19 @@ public class AdnRecord implements Parcelable {
     static final int ADN_CAPABILITY_ID = 12;
     static final int ADN_EXTENSION_ID = 13;
 
+   /*modified for number2 begin*/
+   static final int FOOTER_SIZE_BYTES_FOR_USIM_ANR = 15;
+
+   static final int EMAIL_SIZE_BYTES = 40;
+
+    static final int ANR_ADITION_REC_IDENTI = 0;
+    static final int ANR_BCD_NUMBER_LENGTH = 1;
+    static final int ANR_TON_AND_NPI = 2;
+    static final int ANR_DIALING_NUMBER_START = 3;
+    static final int ANR_DIALING_NUMBER_END = 12;
+    static final int ANR_CAPABILITY_ID = 13;
+    static final int ANR_EXTENSION_ID = 14;
+   /*modified for number2 end*/
     //***** Static Methods
 
     public static final Parcelable.Creator<AdnRecord> CREATOR
@@ -270,6 +283,76 @@ public class AdnRecord implements Parcelable {
 
             return adnString;
         }
+    }
+   /*modified for number2 begin*/
+    public byte[] buildAnrString(int index) {
+        byte[] bcdNumber;
+        byte[] anrString;
+        String aditionalNum = null;
+
+        // create an empty record
+        anrString = new byte[FOOTER_SIZE_BYTES_FOR_USIM_ANR];
+        for (int i = 0; i < FOOTER_SIZE_BYTES_FOR_USIM_ANR; i++) {
+            anrString[i] = (byte) 0xFF;
+        }
+
+        if(TextUtils.isEmpty(additionalNumber)){
+            return null;
+        }else{
+            aditionalNum = additionalNumber;
+        }
+
+        if (TextUtils.isEmpty(aditionalNum)) {
+            Log.w(LOG_TAG, "[buildAnrString] Empty dialing aditional number");
+            //return null;   // return the empty record (for delete)
+	    /*2012-2-16-RIL-zhouyi-return 'FF' data to delete ANR record-Start*/
+	    return anrString;
+	    /*2012-2-16-RIL-zhouyi-return 'FF' data to delete ANR record-End*/
+        } else if (aditionalNum.length() > (ANR_DIALING_NUMBER_END - ANR_DIALING_NUMBER_START + 1) * 2) {
+            Log.w(LOG_TAG, "[buildAnrString] Max length of dialing aditional number is 20");
+            return null;
+        }  else {
+            bcdNumber = PhoneNumberUtils.numberToCalledPartyBCD(aditionalNum);
+
+            System.arraycopy(bcdNumber, 0, anrString, ANR_TON_AND_NPI, bcdNumber.length);
+
+            anrString[ANR_ADITION_REC_IDENTI] = (byte) (index);
+            anrString[ANR_BCD_NUMBER_LENGTH] = (byte) (bcdNumber.length);
+            anrString[ANR_CAPABILITY_ID] = (byte) 0xFF; // Capability Id
+            anrString[ANR_EXTENSION_ID] = (byte) 0xFF; // Extension Record Id
+
+            return anrString;
+        }
+    }
+    public byte[] encodeEmails(){
+        Log.d(LOG_TAG, "encodeEmails ---IN!!!");
+        byte[] emailByte;
+        byte[] emailByteArr;
+        emailByteArr = new byte[EMAIL_SIZE_BYTES];
+        for (int i = 0; i < EMAIL_SIZE_BYTES; i++) {
+            emailByteArr[i] = (byte) 0xFF;
+        }
+       
+        if(TextUtils.isEmpty(email)) return null;
+        //int size =  emails.length;
+        //Log.d(LOG_TAG, "encodeEmails --emails.length = " + emails.length);
+        //if(size > 0){
+          emailByte = IccUtils.hexStringToBytes(toHexString(email));
+          System.arraycopy(emailByte, 0, emailByteArr, 0, emailByte.length);
+          return emailByteArr;
+        //}
+        //return null;
+    }
+   public String toHexString(String s)  
+   {  
+       String str="";  
+       for (int i=0;i<s.length();i++)  
+       {  
+           int ch = (int)s.charAt(i);  
+           String s4 = Integer.toHexString(ch);  
+           str = str + s4;
+        }  
+        return  str;
     }
 
     /**
