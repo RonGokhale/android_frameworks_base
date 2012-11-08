@@ -42,7 +42,7 @@ import java.util.Map;
  * {@hide}
  */
 public class UsimPhoneBookManager extends Handler implements IccConstants {
-    private static final String LOG_TAG = "GSM";
+    private static final String LOG_TAG = "USIMPhoneBookManager";
     private static final boolean DBG = true;
     
     public static int tempNumRec = 0;
@@ -65,6 +65,7 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
     private ArrayList<byte[]> mEmailFileRecord;
  
     private ArrayList<AnrFile> mAnrFile;
+    private boolean updateSuccess;
     private Map<Integer, ArrayList<String>> mEmailsForAdnRec;
     private boolean mRefreshCache = false;
 
@@ -74,6 +75,10 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
     private static final int EVENT_EMAIL_LOAD_DONE = 4;
 
     private static final int EVENT_ANR_LOAD_DONE        = 6;
+    private static final int EVENT_USIM_ADN_UPDATE_DONE = 15;
+    private static final int EVENT_USIM_EMAIL_UPDATE_DONE = 16;
+    private static final int EVENT_USIM_ANR_UPDATE_DONE = 17;
+    private static final int EVENT_USIM_IAP_UPDATE_DONE =19;
 
     private static final int USIM_TYPE1_TAG   = 0xA8;
     private static final int USIM_TYPE2_TAG   = 0xA9;
@@ -90,6 +95,7 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
     private static final int USIM_EFUID_TAG   = 0xC9;
     private static final int USIM_EFEMAIL_TAG = 0xCA;
     private static final int USIM_EFCCP1_TAG  = 0xCB;
+
 
     public UsimPhoneBookManager(IccFileHandler fh, AdnRecordCache cache) {
         mFh = fh;
@@ -472,8 +478,27 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
             return null;
         }
 
+/*2012-02-21-RIL-zhouyi-Mobile phone after the restart SIM card contact email address in @ will become 'i' -Bugzilla-17751-Start*/
+ 	int indexOfAtSign = IccUtils.bytesToHexString(emailRec).indexOf("40");
+	if(indexOfAtSign != -1)
+	{
+		indexOfAtSign = indexOfAtSign/2;
+	}
+/*2012-02-21-RIL-zhouyi-Mobile phone after the restart SIM card contact email address in @ will become 'i' -Bugzilla-17751-End*/
+
         // The length of the record is X+2 byte, where X bytes is the email address
         String email = IccUtils.adnStringFieldToString(emailRec, 0, emailRec.length - 2);
+
+/*2012-02-21-RIL-zhouyi-Mobile phone after the restart SIM card contact email address in @ will become 'i' -Bugzilla-17751-Start*/
+	if(indexOfAtSign != -1)
+        {
+	        StringBuffer sb = new StringBuffer(email);
+	        sb.replace(indexOfAtSign, indexOfAtSign+1, "@");
+	        email = sb.toString();
+	}
+/*2012-02-21-RIL-zhouyi-Mobile phone after the restart SIM card contact email address in @ will become 'i' -Bugzilla-17751-End*/
+
+        Log.d(LOG_TAG, "readEmailRecord---email = " + email);
         return email;
     }
 
@@ -588,6 +613,38 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
             if (ar.exception == null) {
                 createAnrFile((ArrayList<byte[]>)ar.result);
             }
+            synchronized (mLock) {
+                mLock.notify();
+            }
+            break;
+        case EVENT_USIM_ADN_UPDATE_DONE:
+            log("EVENT_USIM_ADN_UPDATE_DONE done");
+            ar = (AsyncResult) msg.obj;
+            updateSuccess = (ar.exception == null);
+            synchronized (mLock) {
+                mLock.notify();
+            }
+            break;
+        case EVENT_USIM_EMAIL_UPDATE_DONE:
+            log("Updating USIM EMAIL records done");
+            ar = (AsyncResult) msg.obj;
+            updateSuccess = (ar.exception == null);
+            synchronized (mLock) {
+                mLock.notify();
+            }
+            break;
+        case EVENT_USIM_ANR_UPDATE_DONE:
+            log("Updating USIM ANR records done");
+            ar = (AsyncResult) msg.obj;
+            updateSuccess = (ar.exception == null);
+            synchronized (mLock) {
+                mLock.notify();
+            }
+            break;
+        case EVENT_USIM_IAP_UPDATE_DONE:
+            log("Updating USIM IAP records done");
+            ar = (AsyncResult) msg.obj;
+            updateSuccess = (ar.exception == null);
             synchronized (mLock) {
                 mLock.notify();
             }
@@ -714,6 +771,258 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
         }
     }
 
+/*modified for number2 begin*/
+public void
+    updateUsimAdnRecord(AdnRecord newAdn, int index, String pin2, Message onComplete){
+        synchronized (mLock) {
+            if (mIsPbrPresent) {
+                // Check if the PBR file is present in the cache, if not read it
+                // from the USIM.
+                if (mPbrFile == null) {
+                    readPbrFileAndWait();
+                }
+
+                if (mPbrFile != null) {
+                    int numRecs = mPbrFile.mFileIds.size();
+                    
+/*2012-02-28-RIL-zhouyi-make the index correct when there are two ADN files-Start*/
+                    int fileIndex = 0;
+                    int recIndex = 0;
+                    if(index != 250 && index != 500)
+                    {
+                    	fileIndex = (index/250);
+                    	recIndex = (index%250); 
+                    	
+                    }else
+                    {
+                    	if(index == 250)
+                    	{
+                    		//if index == 250, the record is still in first ADN file
+                    		fileIndex = 0;
+                    		recIndex = 250; 
+                    		
+                    	}else if(index == 500)
+                    	{
+                    		//if index == 500, the record is still in first ADN file
+                    		fileIndex = 1;
+                    		recIndex = 250; 
+                    		
+                    	}
+                    	
+                    }
+/*2012-02-28-RIL-zhouyi-make the index correct when there are two ADN files-End*/
+                    if(fileIndex < numRecs){
+                        updateAdnFileAndWait(fileIndex, newAdn, recIndex, pin2);
+                        updateEmailFileAndWait(fileIndex, newAdn, recIndex, pin2);
+                        updateAnrFileAndWait(fileIndex, newAdn, recIndex, pin2);
+                    }else{
+                        Log.d(LOG_TAG, "updateUsimAdnRecord --(fileIndex > numRecs)  error!!!! " );
+                    }
+                }
+            }
+        }
+
+        log("updateUsimAdnRecord--updateSuccess = " + updateSuccess);
+        if(updateSuccess){
+             AsyncResult.forMessage(onComplete, true, null);
+             onComplete.sendToTarget();
+        }else{
+             AsyncResult.forMessage(onComplete, false, new Throwable());
+             onComplete.sendToTarget();
+        }
+        //return updateSuccess;
+    }
+
+    private void updateAdnFileAndWait(int recNum, AdnRecord newAdn, int index, String pin2) {
+        Map <Integer,Integer> fileIds;
+        fileIds = mPbrFile.mFileIds.get(recNum);
+        if (fileIds == null || fileIds.isEmpty()) return;
+
+        int extEf = 0;
+        // Only call fileIds.get while EFEXT1_TAG is available
+        if (fileIds.containsKey(USIM_EFEXT1_TAG)) {
+            extEf = fileIds.get(USIM_EFEXT1_TAG);
+        }
+
+        mAdnCache.requestUpdateAdnLike(fileIds.get(USIM_EFADN_TAG), extEf,
+                 obtainMessage(EVENT_USIM_ADN_UPDATE_DONE), newAdn, index, pin2);
+
+        try {
+            mLock.wait();
+        } catch (InterruptedException e) {
+            Log.e(LOG_TAG, "Interrupted Exception in readAdnFileAndWait");
+        }
+    }
+    private void updateEmailFileAndWait(int recNum, AdnRecord newAdn, int index, String pin2) {
+        Map <Integer,Integer> fileIds;
+        fileIds = mPbrFile.mFileIds.get(recNum);
+        if (fileIds == null) return;
+        String email= newAdn.getEmail();
+        if(null == email) 
+    	{
+        	
+        	/*2012-2-16-RIL-zhouyi-when user delete ADN record, we should delete linked email record number in IAP file-Start*/
+	    		//emails== null, then we know user is deleting ADN record, because in the ADNRecord constructor used, we can see the emails get a 'null'
+        	Log.d(LOG_TAG, " we need to delete association between index and email");
+        	try{
+        		byte[] iapRecord = null;
+        		try{
+        			iapRecord = mIapFileRecord.get(index-1);
+        		}catch(IndexOutOfBoundsException e)
+        		{
+        			Log.d(LOG_TAG, "Index Out Of Bounds of mIapFileRecord(size == 250), return");
+        			return;
+        		}
+		        int emailRecNum = iapRecord[mEmailTagNumberInIap];
+		        if(emailRecNum != -1)
+		        {
+		        	Log.d(LOG_TAG, "email==null, so cut the association between index: " + index + " and emailRecNum: " + emailRecNum);
+		        	byte[] data = new byte[mEmailTagNumberInIap+1];
+		            data[0] = (byte)0xff;
+		            
+		            boolean remove = existEmailRecord.remove(Integer.valueOf(emailRecNum));
+		            Log.d(LOG_TAG, "remove email record: " + String.valueOf(remove));
+		            mIapFileRecord.set(index-1, data);
+		
+		            mFh.updateEFLinearFixed(fileIds.get(USIM_EFIAP_TAG), index, data, pin2,
+		                         obtainMessage(EVENT_USIM_IAP_UPDATE_DONE));
+		        }
+        	}catch(Exception e)
+        	{
+        		Log.d(LOG_TAG, "error occurs while deleting association between index and email");
+        	}
+	        //==============================================================
+	    		return;
+    	}
+
+        Log.d(LOG_TAG, "updateEmailFileAndWait ---newAdn =" + newAdn.toString() + "  index = " + index);
+        if (mEmailPresentInIap && mIapFileRecord != null) {
+            Log.d(LOG_TAG, "updateEmailFileAndWait--update Iap file!!");
+            updateIapFileAndWait(fileIds.get(USIM_EFIAP_TAG), newAdn, index, pin2);
+        }
+        
+        if(!EmailSlotFound)
+        {
+        	Log.d(LOG_TAG, "empty or available email slot not found! so cancel updating email");
+        	return;
+        }
+        
+        if (fileIds.containsKey(USIM_EFEMAIL_TAG)) {
+            int efid = fileIds.get(USIM_EFEMAIL_TAG);
+            Log.d(LOG_TAG, "updateEmailFileAndWait--begin encoding Emails!!");
+            byte[] data = null ;
+            //Log.d(LOG_TAG, "emails.length = " + emails.length);
+            //if(emails.length > 0){
+                Log.d(LOG_TAG, "email = " + email);
+                data = newAdn.encodeEmails();
+            //}
+            //byte[] data = newAdn.encodeEmails();
+            if(data == null){
+                return;
+            }
+            Log.d(LOG_TAG, "encoding eMails data = " + data[0] + data[1]);
+            // Read the EFEmail file.
+			/*2012-2-16-RIL-zhouyi-use available email record to update IAP, but not ADN index-Start*/
+//             mFh.updateEFLinearFixed(fileIds.get(USIM_EFEMAIL_TAG), index, data, pin2,
+  //                  obtainMessage(EVENT_USIM_EMAIL_UPDATE_DONE));
+             mFh.updateEFLinearFixed(fileIds.get(USIM_EFEMAIL_TAG), availableEmailSlotNumber, data, pin2,
+            		 obtainMessage(EVENT_USIM_EMAIL_UPDATE_DONE));
+  			/*2012-2-16-RIL-zhouyi-use available email record to update IAP, but not ADN index-End*/
+            try {
+                mLock.wait();
+            } catch (InterruptedException e) {
+                Log.e(LOG_TAG, "Interrupted Exception in readEmailFileAndWait");
+            }
+        }
+    }
+
+    private void updateAnrFileAndWait(int recNum, AdnRecord newAdn, int index, String pin2) {
+        Map <Integer,Integer> fileIds;
+        fileIds = mPbrFile.mFileIds.get(recNum);
+        if (fileIds == null) return;
+
+        if (fileIds.containsKey(USIM_EFANR_TAG)) {
+            int efid = fileIds.get(USIM_EFANR_TAG);
+
+            byte[] data = newAdn.buildAnrString(index);
+            Log.d(LOG_TAG, "updateAnrFileAndWait-- data = " + data);
+            if(data == null){
+                return;
+            }
+            mFh.updateEFLinearFixed(fileIds.get(USIM_EFANR_TAG), index, data, pin2,
+                        obtainMessage(EVENT_USIM_ANR_UPDATE_DONE));
+            try {
+                mLock.wait();
+            } catch (InterruptedException e) {
+                Log.e(LOG_TAG, "Interrupted Exception in readAnrFileAndWait");
+            }
+        }
+    }
+    private void updateIapFileAndWait(int efid, AdnRecord newAdn, int index, String pin2) {
+        Log.d(LOG_TAG, "updateIapFileAndWait-- mEmailTagNumberInIap = " + mEmailTagNumberInIap );
+
+        byte[] data = new byte[mEmailTagNumberInIap+1];
+        for(int i = 0; i < (mEmailTagNumberInIap+1); i++){
+           data[i] = (byte)0xff;
+        }
+               
+        try{
+        	byte[] iapRecord = null;
+        	try{
+        		iapRecord = mIapFileRecord.get(index-1); //we should use 'index-1', because in updatePhoneAdnRecord() they use 0-base index to fetch value
+        	}catch(IndexOutOfBoundsException e)
+    		{
+    			Log.d(LOG_TAG, "Index Out Of Bounds of mIapFileRecord(size == 250), return");
+    			return;
+    		}
+	        
+	        int emailRecNum = iapRecord[mEmailTagNumberInIap];
+	        if(emailRecNum != -1)
+	        {
+	        	Log.d(LOG_TAG, "emailRecNum != -1" );
+	        	data[mEmailTagNumberInIap] = (byte)emailRecNum;
+	        	availableEmailSlotNumber = emailRecNum;
+	        	EmailSlotFound = true;
+	        	
+	        }else
+	        {
+	        	Log.d(LOG_TAG, "emailRecNum == -1" );
+	        	EmailSlotFound = false;
+	        	for(int i=1; i<=100; i++) //the index here is 1-base, when read email records, will be converted to 0-base
+	        	{
+	        		if(!existEmailRecord.contains(Integer.valueOf(i)))
+	        		{
+	        			data[mEmailTagNumberInIap] = (byte)i;
+	        			availableEmailSlotNumber = i;
+	        			EmailSlotFound = true;
+	        			existEmailRecord.add(i);
+	        			mIapFileRecord.set(index-1, data);
+	        			break;
+	        			
+	        		}
+	        	}
+	        	
+	        }
+        }catch(Exception e)
+        {
+        	Log.d(LOG_TAG, "error occurs while updating IAP for email record");
+    		return;
+        }
+        
+        //if emptyFound is false, then we do not update email.
+         
+//        data[mEmailTagNumberInIap] = (byte)(index&0x0f);
+		/*2012-02-16-RIL-zhouyi-IAP related operation when updating or adding email record-Bugzilla-16796-End*/
+        Log.d(LOG_TAG, "updateIapFileAndWait-- data[0] = " + data[0] );
+
+        mFh.updateEFLinearFixed(efid, index, data, pin2,
+                     obtainMessage(EVENT_USIM_IAP_UPDATE_DONE));
+        try {
+            mLock.wait();
+        } catch (InterruptedException e) {
+            Log.e(LOG_TAG, "Interrupted Exception in readAnrFileAndWait");
+        }
+    }
     private void log(String msg) {
         if(DBG) Log.d(LOG_TAG, msg);
     }

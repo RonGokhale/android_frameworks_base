@@ -301,7 +301,7 @@ public class MSimIccProvider extends IccProvider {
         String number = values.getAsString("number");
         String newTag = values.getAsString("newTag");
         String newNumber = values.getAsString("newNumber");
-        String newEmail = values.getAsString("newNumber");
+        String newEmail = values.getAsString("newEmail");
 		String newAnr = values.getAsString("newAnr");
         // TODO(): Update for email.
         boolean success = updateIccRecordInEf(efType, tag, number,
