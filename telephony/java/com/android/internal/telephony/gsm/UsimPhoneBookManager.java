@@ -487,7 +487,8 @@ public class UsimPhoneBookManager extends Handler implements IccConstants {
 /*2012-02-21-RIL-zhouyi-Mobile phone after the restart SIM card contact email address in @ will become 'i' -Bugzilla-17751-End*/
 
         // The length of the record is X+2 byte, where X bytes is the email address
-        String email = IccUtils.adnStringFieldToString(emailRec, 0, emailRec.length - 2);
+//        String email = IccUtils.adnStringFieldToString(emailRec, 0, emailRec.length - 2);
+        String email = IccUtils.adnStringFieldToString(emailRec, 0, emailRec.length);
 
 /*2012-02-21-RIL-zhouyi-Mobile phone after the restart SIM card contact email address in @ will become 'i' -Bugzilla-17751-Start*/
 	if(indexOfAtSign != -1)

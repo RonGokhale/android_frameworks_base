@@ -1748,7 +1748,7 @@ public final class RIL extends BaseCommands implements CommandsInterface {
                 + " 0x" + Integer.toHexString(command)
                 + " 0x" + Integer.toHexString(fileid) + " "
                 + " path: " + path + ","
-                + p1 + "," + p2 + "," + p3
+                + p1 + "," + p2 + "," + p3 + ", data: " + data
                 + " aid: " + aid);
 
         send(rr);
