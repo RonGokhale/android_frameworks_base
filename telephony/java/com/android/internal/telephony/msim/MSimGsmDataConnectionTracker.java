@@ -44,6 +44,8 @@ import com.android.internal.telephony.uicc.UiccController;
 import java.util.ArrayList;
 import java.util.Collection;
 
+//import com.qrd.plugin.feature_query.FeatureQuery;
+
 /**
  * This file is used to handle Multi sim case
  * Functions are overriden to register and notify data disconnect
@@ -429,4 +431,12 @@ public final class MSimGsmDataConnectionTracker extends GsmDataConnectionTracker
     protected void loge(String s) {
         Log.e(LOG_TAG, "[MSimGsmDCT:" + mSubscription + "] " + s);
     }
+
+//Add FEATURE_DATA_CONNECT_FOR_G start
+    public void updateInternalDataEnable(){
+        mInternalDataEnabled = mSubscription == MSimPhoneFactory.getDataSubscription();
+        log("updateInternalDataEnable    mInternalDataEnabled = " + mInternalDataEnabled);
+        return;
+    }
+//Add FEATURE_DATA_CONNECT_FOR_G end
 }

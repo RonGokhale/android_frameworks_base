@@ -54,6 +54,8 @@ import android.text.TextUtils;
 import android.util.Log;
 import com.android.internal.telephony.Phone;
 
+//import com.qrd.plugin.feature_query.FeatureQuery;
+
 /**
  * Keep track of all the subscription related informations.
  * Includes:
@@ -786,7 +788,17 @@ public class SubscriptionManager extends Handler {
                             Integer.toString(activeSub.subId));
                     mDisableDdsInProgress = true;
                     logd("update setDataSubscription to " + activeSub.subId);
-                    mCi[activeSub.subId].setDataSubscription(callback);
+
+                    //if (FeatureQuery.FEATURE_DATA_CONNECT_FOR_G) {
+                       if (callback != null){
+                            AsyncResult.forMessage(callback,true, null);
+                            callback.sendToTarget();
+                            callback = null;
+                       } 
+                    //} else {	
+                    //   mCi[activeSub.subId].setDataSubscription(callback);
+                    //}
+
                     mSetDdsRequired = false;
                 } else {
                     // Set the flag and update the mCurrentDds, so that when subscription
@@ -1607,8 +1619,18 @@ public class SubscriptionManager extends Handler {
                         new Integer(mQueuedDds));
                 Log.d(LOG_TAG, "Set DDS to " + mQueuedDds
                         + " Calling cmd interface setDataSubscription");
-                mCi[mQueuedDds].setDataSubscription(msgSetDataSub);
+
+                //if (FeatureQuery.FEATURE_DATA_CONNECT_FOR_G) {
+                    if (msgSetDataSub != null) {
+                        AsyncResult.forMessage(msgSetDataSub,true, null);
+                        msgSetDataSub.sendToTarget();
+                        msgSetDataSub = null;
+                    } 
+                //} else {	
+                //   mCi[mQueuedDds].setDataSubscription(msgSetDataSub);
+                //}
                 return;
+
             } else {
                 logd("Current subscription is same as requested Subscription");
                 result = true;

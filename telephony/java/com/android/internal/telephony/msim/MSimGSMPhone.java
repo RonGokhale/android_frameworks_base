@@ -50,6 +50,8 @@ import com.android.internal.telephony.uicc.UiccCardApplication;
 import static com.android.internal.telephony.MSimConstants.EVENT_SUBSCRIPTION_ACTIVATED;
 import static com.android.internal.telephony.MSimConstants.EVENT_SUBSCRIPTION_DEACTIVATED;
 
+//import com.qrd.plugin.feature_query.FeatureQuery;
+
 public class MSimGSMPhone extends GSMPhone {
     // Holds the subscription information
     private Subscription mSubscriptionData = null;
@@ -135,6 +137,10 @@ public class MSimGSMPhone extends GSMPhone {
         onUpdateIccAvailability();
         mSST.sendMessage(mSST.obtainMessage(ServiceStateTracker.EVENT_ICC_CHANGED));
         ((MSimGsmDataConnectionTracker)mDataConnectionTracker).updateRecords();
+
+        //if (FeatureQuery.FEATURE_DATA_CONNECT_FOR_G) {
+           ((MSimGsmDataConnectionTracker)mDataConnectionTracker).updateInternalDataEnable();
+        //}
 
         // read the subscription specifics now
         mCM.getIMEI(obtainMessage(EVENT_GET_IMEI_DONE));
