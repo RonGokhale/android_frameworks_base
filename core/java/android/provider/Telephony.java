@@ -1868,6 +1868,7 @@ public final class Telephony {
              * The time we last tried to send or download the message.
              */
             public static final String LAST_TRY = "last_try";
+            public static final String SUB_ID = "pend_sub";
         }
 
         public static final class WordsTable {
