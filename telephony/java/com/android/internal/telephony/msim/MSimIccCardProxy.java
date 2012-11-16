@@ -106,21 +106,22 @@ public class MSimIccCardProxy extends IccCardProxy {
             case EVENT_RECORDS_LOADED:
                 if (mIccRecords != null) {
                     String operator = mIccRecords.getOperatorNumeric();
-                    int sub = (mSubscriptionData != null) ? mSubscriptionData.subId : 0;
+                    /*Modified by YELLOWSTONE_hanjianjun for FEATURE_DATA_CONNECT_FOR_G 20121116 begin*/
+                    //int sub = (mSubscriptionData != null) ? mSubscriptionData.subId : 0;
 
-                    log("operator = " + operator + " SUB = " + sub);
+                    log("operator = " + operator + " mCardIndex = " + mCardIndex);
 
                     if (operator != null) {
                         MSimTelephonyManager.setTelephonyProperty(
-                                PROPERTY_ICC_OPERATOR_NUMERIC, sub, operator);
+                                PROPERTY_ICC_OPERATOR_NUMERIC, mCardIndex, operator);
                         if (mCurrentAppType == UiccController.APP_FAM_3GPP) {
                             MSimTelephonyManager.setTelephonyProperty(
-                                    PROPERTY_APN_SIM_OPERATOR_NUMERIC, sub, operator);
+                                    PROPERTY_APN_SIM_OPERATOR_NUMERIC, mCardIndex, operator);
                         }
                         String countryCode = operator.substring(0,3);
                         if (countryCode != null) {
                             MSimTelephonyManager.setTelephonyProperty(
-                                    PROPERTY_ICC_OPERATOR_ISO_COUNTRY, sub,
+                                    PROPERTY_ICC_OPERATOR_ISO_COUNTRY, mCardIndex,
                                     MccTable.countryCodeForMcc(Integer.parseInt(countryCode)));
                         } else {
                             loge("EVENT_RECORDS_LOADED Country code is null");
@@ -128,6 +129,7 @@ public class MSimIccCardProxy extends IccCardProxy {
                     } else {
                         loge("EVENT_RECORDS_LOADED Operator name is null");
                     }
+                    /* Modified by YELLOWSTONE_hanjianjun for FEATURE_DATA_CONNECT_FOR_G 20121116 end*/ 
                 }
                 broadcastIccStateChangedIntent(INTENT_VALUE_ICC_LOADED, null);
                 break;

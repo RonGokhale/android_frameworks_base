@@ -774,7 +774,13 @@ public class SubscriptionManager extends Handler {
             if (MSimPhoneFactory.getDefaultSubscription() != activeSub.subId) {
                 MSimPhoneFactory.setDefaultSubscription(activeSub.subId);
             }
-
+             /*Add by YELLOWSTONE_hanjj for FEATURE_DATA_CONNECT_FOR_G 20121116 begin*/
+             //if (FeatureQuery.FEATURE_DATA_CONNECT_FOR_G) {
+                if (MSimPhoneFactory.getDataSubscription() != activeSub.subId) {
+                    MSimPhoneFactory.setDataSubscription(activeSub.subId);
+                }
+            //}
+            /*Add by YELLOWSTONE_hanjj for FEATURE_DATA_CONNECT_FOR_G 20121116 end*/
             if (mCurrentDds != activeSub.subId) {
                 // Currently selected DDS subscription is not in activated state.
                 // So set the DDS to the only active subscription available now.
