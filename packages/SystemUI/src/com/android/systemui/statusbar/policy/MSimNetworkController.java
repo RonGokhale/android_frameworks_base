@@ -876,6 +876,11 @@ public class MSimNetworkController extends NetworkController {
                 mMSimContentDescriptionCombinedSignal[subscription] =
                         mMSimContentDescriptionDataType[subscription];
             }
+			/*add by YELLOWSTONE_yangliu for setting the up or down link icon value to zero when data disconnected begin*/
+			else {
+				  mMSimcombinedActivityIconId[subscription] = mMSimMobileActivityIconId[subscription] = 0;
+			}
+			/*add by YELLOWSTONE_yangliu for setting the up or down link icon value to zero when data disconnected end*/
         }
 
         if (mWifiConnected) {

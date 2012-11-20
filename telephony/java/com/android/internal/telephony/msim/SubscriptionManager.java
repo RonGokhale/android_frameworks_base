@@ -1291,6 +1291,16 @@ public class SubscriptionManager extends Handler {
                             newSub.subId,
                             newSub.subStatus.ordinal(),
                             msgSetUiccSubDone);
+/*add by YELLOWSTONE_yangliu for deactivating card begin*/
+                    if(!mCardShouldEnable[newSub.subId])
+                    {
+                    	MSimPhoneFactory.getPhone(newSub.subId).setRadioPower(false);
+                    	
+                    }else
+                    {
+                    	logd("card enabled, should not turn off again");
+                    }
+/*add by YELLOWSTONE_yangliu for deactivating card end*/
                 }
                 // process one request at a time!!
                 return true;
