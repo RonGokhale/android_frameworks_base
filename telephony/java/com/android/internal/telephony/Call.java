@@ -40,6 +40,19 @@ public abstract class Call {
         public boolean isDialing() {
             return this == DIALING || this == ALERTING;
         }
+        public boolean isActive() {
+			return this == ACTIVE;
+		}
+		public boolean isHolding() {
+		    return this == HOLDING;
+		}
+		public boolean isDisconnect() {
+		    return (this == DISCONNECTED || this == DISCONNECTING);
+		}
+		public boolean isIdle(){
+            return this == IDLE;
+		}
+				           		
     }
 
 
