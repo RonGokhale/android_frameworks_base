@@ -37,6 +37,8 @@ import com.android.internal.telephony.msim.Subscription;
 import com.android.internal.telephony.uicc.SIMRecords;
 import com.android.internal.telephony.uicc.UiccCardApplication;
 import com.android.internal.telephony.uicc.UiccController;
+import com.android.internal.telephony.CommandsInterface;
+
 
 /**
  * {@hide}
@@ -181,6 +183,25 @@ public final class MSimGsmServiceStateTracker extends GsmServiceStateTracker {
                 break;
         }
     }
+  @Override
+  /*add by YELLOWSTONE_yangliu for adding one condition of cardenable status when setting the radio on or off begin*/
+  protected void setPowerStateToDesired() {
+        // If we want it on and it's off, turn it on
+    	
+    	int subscription = phone.getSubscription();
+    	boolean cardEnableStatus = SubscriptionManager.getInstance().mCardShouldEnable[subscription];
+    	Log.i(LOG_TAG, "subscription == " + subscription + "  cardEnableStatus == " + String.valueOf(cardEnableStatus));
+    	
+        if (mDesiredPowerState
+            && cm.getRadioState() == CommandsInterface.RadioState.RADIO_OFF && cardEnableStatus) {
+            cm.setRadioPower(true, null);
+        } else if (!mDesiredPowerState && cm.getRadioState().isOn()) {
+            // If it's on and available and we want it off gracefully
+            DataConnectionTracker dcTracker = phone.mDataConnectionTracker;
+            powerOffRadioSafely(dcTracker);
+        } // Otherwise, we're in the desired state
+    }
+  /*add by YELLOWSTONE_yangliu for adding one condition of cardenable status when setting the radio on or off end*/
 
     @Override
     protected void log(String s) {
