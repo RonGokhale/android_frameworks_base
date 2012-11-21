@@ -97,7 +97,7 @@ public class MSimTelephonyManager {
         return sInstance;
     }
 	
-    public boolean isMultiSimEnabled() {
+    public static boolean isMultiSimEnabled() {
         return (multiSimConfig.equals("dsds") || multiSimConfig.equals("dsda"));
     }
 
@@ -400,6 +400,9 @@ public class MSimTelephonyManager {
             return TelephonyManager.SIM_STATE_READY;
         } else if ("CARD_IO_ERROR".equals(prop)) {
             return TelephonyManager.SIM_STATE_CARD_IO_ERROR;
+        }
+        else if ("CARD_DEACTIVATED".equals(prop)) {
+            return TelephonyManager.SIM_STATE_DEACTIVATED;
         } else {
             return TelephonyManager.SIM_STATE_UNKNOWN;
         }
