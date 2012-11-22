@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
  * Copyright (C) 2009 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +19,7 @@ package android.provider;
 
 import android.accounts.Account;
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.ContentProviderClient;
 import android.content.ContentProviderOperation;
 import android.content.ContentResolver;
@@ -41,6 +43,8 @@ import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Pair;
 import android.view.View;
+import android.widget.Toast;
+import com.android.internal.R;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -5088,6 +5092,31 @@ public final class ContactsContract {
             public static final String LABEL = DataColumns.DATA3;
         }
 
+        /** @hide */
+        public static final class LocalGroup implements DataColumnsWithJoins {
+            /** @hide */
+            private LocalGroup() {
+            }
+
+            /** @hide */
+            public static final String CONTENT_ITEM_TYPE = "vnd.android.cursor.item/local-groups";
+
+            /** @hide */
+            public static final String GROUP = DATA1;
+
+            /** @hide */
+            public static final Uri CONTENT_URI = Uri.withAppendedPath(Data.CONTENT_URI,
+                    "local-groups");
+
+            /** @hide */
+            public static final Uri CONTENT_LOOKUP_URI = Uri
+                    .withAppendedPath(CONTENT_URI, "lookup");
+
+            /** @hide */
+            public static final Uri CONTENT_FILTER_URI = Uri
+                    .withAppendedPath(CONTENT_URI, "filter");
+        }
+
         /**
          * A data kind representing the contact's proper name. You can use all
          * columns defined for {@link ContactsContract.Data} as well as the following aliases.
@@ -7744,7 +7773,13 @@ public final class ContactsContract {
             intent.setSourceBounds(target);
             intent.putExtra(EXTRA_MODE, mode);
             intent.putExtra(EXTRA_EXCLUDE_MIMES, excludeMimes);
-            context.startActivity(intent);
+
+            try{
+                context.startActivity(intent);
+            } catch ( ActivityNotFoundException e ){
+                Toast.makeText(context, R.string.No_Quick_Contact, Toast.LENGTH_SHORT).show();
+            }
+
         }
     }
 
