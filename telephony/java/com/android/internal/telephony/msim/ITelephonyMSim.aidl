@@ -361,5 +361,9 @@ interface ITelephonyMSim {
     boolean setPreferredDataSubscription(int subscription);
 
     boolean isSimPukLocked(int subscription);
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    int enableApnTypeWithSubScription(String type,int subscription);
+    int disableApnTypeWithSubScription(String type,int subscription);
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
 }
 

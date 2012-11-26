@@ -1474,4 +1474,24 @@ public class PduPersister {
                 uriBuilder.build(), null, selection, selectionArgs,
                 PendingMessages.DUE_TIME);
     }
+	/*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    public Cursor getPendingMessages(long dueTime,long subscription) {
+        Uri.Builder uriBuilder = PendingMessages.CONTENT_URI.buildUpon();
+        uriBuilder.appendQueryParameter("protocol", "mms");
+
+        String selection = PendingMessages.ERROR_TYPE + " < ?"
+                + " AND " + PendingMessages.DUE_TIME + " <= ?"
+                + " AND " + PendingMessages.SUB_ID + "=?";
+
+        String[] selectionArgs = new String[] {
+                String.valueOf(MmsSms.ERR_TYPE_GENERIC_PERMANENT),
+                String.valueOf(dueTime),
+                String.valueOf(subscription)
+        };
+
+        return SqliteWrapper.query(mContext, mContentResolver,
+                uriBuilder.build(), null, selection, selectionArgs,
+                PendingMessages.DUE_TIME);
+    }
+	/*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
 }

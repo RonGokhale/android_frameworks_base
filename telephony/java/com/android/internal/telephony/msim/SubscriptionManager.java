@@ -54,7 +54,10 @@ import android.text.TextUtils;
 import android.util.Log;
 import com.android.internal.telephony.Phone;
 
-//import com.qrd.plugin.feature_query.FeatureQuery;
+import android.net.ConnectivityManager;
+import android.provider.Settings;
+import android.content.ContentResolver;
+import com.qrd.plugin.feature_query.FeatureQuery;
 
 /**
  * Keep track of all the subscription related informations.
@@ -440,6 +443,12 @@ public class SubscriptionManager extends Handler {
             // Enable the data connectivity on new dds.
             logd("setDataSubscriptionSource is Successful"
                     + "  Enable Data Connectivity on Subscription " + mCurrentDds);
+            /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+            if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+               ConnectivityManager mConnMgr = (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+               mConnMgr.setPreferredSubscription(mCurrentDds);
+            }
+            /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
             MSimProxyManager.getInstance().enableDataConnectivity(mCurrentDds);
             mDataActive = true;
         } else {
@@ -1623,8 +1632,12 @@ public class SubscriptionManager extends Handler {
                         + " is not yet activated, returning failure");
                 exception = new RuntimeException("Subscription not active");
             } else if (mCurrentDds != subscription) {
-                boolean flag = MSimProxyManager.getInstance()
-                         .disableDataConnectivityFlag(mCurrentDds);
+                /*add by YELLOWSTONE_hanjianjun for modify the function about switch data subcription 20121123 begin*/
+                /*boolean flag = MSimProxyManager.getInstance()
+                         .disableDataConnectivityFlag(mCurrentDds);*/
+                MSimProxyManager.getInstance()
+                         .disableDataConnectivity(mCurrentDds,null);
+                /*add by YELLOWSTONE_hanjianjun for modify the function about switch data subcription 20121123 end*/
                 mSetDdsCompleteMsg = onCompleteMsg;
                 mQueuedDds = subscription;
                 mDisableDdsInProgress = true;

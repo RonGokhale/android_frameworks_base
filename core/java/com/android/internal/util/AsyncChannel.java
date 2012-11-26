@@ -31,6 +31,7 @@ import android.util.Slog;
 
 import java.util.Stack;
 
+import com.qrd.plugin.feature_query.FeatureQuery;
 /**
  * <p>An asynchronous channel between two handlers.</p>
  *
@@ -195,11 +196,19 @@ public class AsyncChannel {
     /** Messenger for destination */
     private Messenger mDstMessenger;
 
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    private int mSubscription;
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     /**
      * AsyncChannel constructor
      */
     public AsyncChannel() {
     }
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    public AsyncChannel(int subscription) {
+       mSubscription = subscription;
+    }
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
 
     /**
      * Connect handler to named package/class synchronously.
@@ -820,6 +829,11 @@ public class AsyncChannel {
     private void replyHalfConnected(int status) {
         Message msg = mSrcHandler.obtainMessage(CMD_CHANNEL_HALF_CONNECTED);
         msg.arg1 = status;
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+            msg.arg2 = mSubscription;
+        }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         msg.obj = this;
         msg.replyTo = mDstMessenger;
         mSrcHandler.sendMessage(msg);
@@ -834,6 +848,11 @@ public class AsyncChannel {
     private void replyDisconnected(int status) {
         Message msg = mSrcHandler.obtainMessage(CMD_CHANNEL_DISCONNECTED);
         msg.arg1 = status;
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+            msg.arg2 = mSubscription;
+        }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         msg.obj = this;
         msg.replyTo = mDstMessenger;
         mSrcHandler.sendMessage(msg);

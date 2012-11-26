@@ -46,4 +46,11 @@ interface ITelephonyRegistryMSim {
     void notifyCellLocation(in Bundle cellLocation, in int subscription);
     void notifyOtaspChanged(in int otaspMode);
     void notifyCellInfo(in CellInfo cellInfo, in int subscription);
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    void notifyDataConnectionWithSubScription(int state, boolean isDataConnectivityPossible,
+            String reason, String apn, String apnType, in LinkProperties linkProperties,
+            in LinkCapabilities linkCapabilities, int networkType, boolean roaming,int subscription);
+    void notifyDataConnectionFailedWithSubScription(String reason, String apnType,int subscription);
+    void notifyDataActivityWithSubscription(int state,int subscription);
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
 }

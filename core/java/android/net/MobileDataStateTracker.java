@@ -48,6 +48,7 @@ import com.android.internal.util.AsyncChannel;
 import java.io.CharArrayWriter;
 import java.io.PrintWriter;
 
+import com.qrd.plugin.feature_query.FeatureQuery;
 /**
  * Track the state of mobile data connectivity. This is done by
  * receiving broadcast intents from the Phone process whenever
@@ -184,6 +185,15 @@ public class MobileDataStateTracker implements NetworkStateTracker {
             if (intent.getAction().equals(TelephonyIntents.
                     ACTION_ANY_DATA_CONNECTION_STATE_CHANGED)) {
                 String apnType = intent.getStringExtra(Phone.DATA_APN_TYPE_KEY);
+                 /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+                  if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+                    int subscription = intent.getIntExtra(Phone.DATA_SUBSCRIPTION_KEY,-1);
+                    if(subscription  != mNetworkInfo.getSubscription() )  {
+                       if(DBG) log("****message is not sent this object.,subscription is:"+subscription+"this sub is:"+mNetworkInfo.getSubscription() );
+                         return ;
+                       }
+                  }
+                  /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
                 if (VDBG) {
                     log(String.format("Broadcast received: ACTION_ANY_DATA_CONNECTION_STATE_CHANGED"
                         + "mApnType=%s %s received apnType=%s", mApnType,
@@ -268,6 +278,15 @@ public class MobileDataStateTracker implements NetworkStateTracker {
             } else if (intent.getAction().
                     equals(TelephonyIntents.ACTION_DATA_CONNECTION_FAILED)) {
                 String apnType = intent.getStringExtra(Phone.DATA_APN_TYPE_KEY);
+                  /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+                  if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+                        int subscription = intent.getIntExtra(Phone.DATA_SUBSCRIPTION_KEY,-1);
+                      if(subscription  != mNetworkInfo.getSubscription() )  {
+                           if(DBG) log("****message is not sent this object.,subscription is:"+subscription+"this sub is:"+mNetworkInfo.getSubscription() );
+                                return;
+                            }
+                    }
+                /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
                 if (!TextUtils.equals(apnType, mApnType)) {
                     if (DBG) {
                         log(String.format(
@@ -286,9 +305,13 @@ public class MobileDataStateTracker implements NetworkStateTracker {
             } else if (intent.getAction().
                     equals(DataConnectionTracker.ACTION_DATA_CONNECTION_TRACKER_MESSENGER)) {
                 if (VDBG) log(mApnType + " got ACTION_DATA_CONNECTION_TRACKER_MESSENGER");
-                mMessenger = intent.getParcelableExtra(DataConnectionTracker.EXTRA_MESSENGER);
-                AsyncChannel ac = new AsyncChannel();
-                ac.connect(mContext, MobileDataStateTracker.this.mHandler, mMessenger);
+                    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+                 if(!FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+                     mMessenger = intent.getParcelableExtra(DataConnectionTracker.EXTRA_MESSENGER);
+                     AsyncChannel ac = new AsyncChannel();
+                     ac.connect(mContext, MobileDataStateTracker.this.mHandler, mMessenger);
+               }
+               /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
             } else {
                 if (DBG) log("Broadcast received: ignore " + intent.getAction());
             }

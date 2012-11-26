@@ -153,6 +153,13 @@ public class DataConnectionAc extends AsyncChannel {
         mLogTag = logTag;
     }
 
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    public DataConnectionAc(DataConnection dc, String logTag,int subscription) {
+        super(subscription);
+        dataConnection = dc;
+        mLogTag = logTag;
+    }
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     /**
      * Request if the state machine is in the inactive state.
      * Response {@link #rspIsInactive}

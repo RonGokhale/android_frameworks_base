@@ -764,7 +764,7 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(FRAMEWORKS_EXT_SRCS)
 
 LOCAL_NO_STANDARD_LIBRARIES := true
-LOCAL_JAVA_LIBRARIES := bouncycastle core core-junit ext framework
+LOCAL_JAVA_LIBRARIES := bouncycastle core core-junit ext framework com.qrd.plugin.feature_query
 
 LOCAL_MODULE := framework_ext
 LOCAL_MODULE_CLASS := JAVA_LIBRARIES

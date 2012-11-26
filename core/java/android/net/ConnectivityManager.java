@@ -405,6 +405,49 @@ public class ConnectivityManager {
         }
     }
 
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    public void setPreferredSubscription(int subscription)  {
+        try {
+            mService.setPreferredSubscription(subscription);
+        } catch (RemoteException e) {
+            return ;
+        }
+    }
+
+    public boolean requestRouteToHostWithSubScription(int networkType, int hostAddress,int subscription) {
+        try {
+            return mService.requestRouteToHostWithSubScription(networkType,hostAddress,subscription);
+        } catch (RemoteException e) {
+            return false;
+        }
+
+    }
+
+    public NetworkInfo getNetworkInfoWithSubScription(int networkType,int subscription) {
+        try {
+            return mService.getNetworkInfoWithSubScription(networkType,subscription);
+        } catch (RemoteException e) {
+            return null;
+        }
+    }
+
+     public int stopUsingNetworkFeatureWithSubScription(int networkType, String feature,int subscription) {
+        try {
+            return mService.stopUsingNetworkFeatureWithSubScription(networkType, feature,subscription);
+        } catch (RemoteException e) {
+            return -1;
+        }
+    }
+
+    public int startUsingNetworkFeatureWithSubScription(int networkType, String feature,int subscription) {
+         try {
+             return mService.startUsingNetworkFeatureWithSubScription(networkType, feature,subscription,
+                    new Binder());
+         } catch (RemoteException e) {
+             return -1;
+         }
+    }
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     public NetworkInfo[] getAllNetworkInfo() {
         try {
             return mService.getAllNetworkInfo();

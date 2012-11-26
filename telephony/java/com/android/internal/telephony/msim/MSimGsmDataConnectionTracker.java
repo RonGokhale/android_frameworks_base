@@ -44,7 +44,7 @@ import com.android.internal.telephony.uicc.UiccController;
 import java.util.ArrayList;
 import java.util.Collection;
 
-//import com.qrd.plugin.feature_query.FeatureQuery;
+import com.qrd.plugin.feature_query.FeatureQuery;
 
 /**
  * This file is used to handle Multi sim case
@@ -336,9 +336,13 @@ public final class MSimGsmDataConnectionTracker extends GsmDataConnectionTracker
         /* If flag is set to false after SETUP_DATA_CALL is invoked, we need
          * to clean data connections.
          */
-        if (!mInternalDataEnabled) {
-            cleanUpAllConnections(null);
-        }
+         /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+         if(!FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+             if (!mInternalDataEnabled) {
+                cleanUpAllConnections(null);
+            }
+         }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     }
 
 
@@ -366,9 +370,13 @@ public final class MSimGsmDataConnectionTracker extends GsmDataConnectionTracker
 
     /** Returns true if this is current DDS. */
     protected boolean isActiveDataSubscription() {
-        return (mSubscription != null
-                ? mSubscription == MSimPhoneFactory.getDataSubscription()
-                : false);
+       /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+       if(!FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+         return (mSubscription == MSimPhoneFactory.getDataSubscription());
+       } else {
+         return true;
+       }
+       /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     }
 
     // setAsCurrentDataConnectionTracker

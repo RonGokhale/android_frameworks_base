@@ -16,7 +16,10 @@
  */
 
 package com.android.internal.telephony.gsm;
-
+import android.provider.Settings;
+import android.provider.Settings.SettingNotFoundException;
+import android.os.Handler;
+import android.database.ContentObserver;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.ContentResolver;
@@ -79,6 +82,9 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import android.telephony.MSimTelephonyManager;
+import com.android.internal.telephony.TelephonyProperties;
+import com.qrd.plugin.feature_query.FeatureQuery;
 
 /**
  * {@hide}
@@ -140,6 +146,9 @@ public class GsmDataConnectionTracker extends DataConnectionTracker {
 
     private static final boolean DATA_STALL_SUSPECTED = true;
     private static final boolean DATA_STALL_NOT_SUSPECTED = false;
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    Uri mUri;
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     /*
      * If this property is set to true then android assumes that multiple PDN is
      * going to be supported in modem/nw. However if second PDN requests fails,
@@ -234,6 +243,17 @@ public class GsmDataConnectionTracker extends DataConnectionTracker {
             if (DBG) log("Subscription from NV and EHRPD: createAllApnList");
             createAllApnList();
         }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+          if(0 == mPhone.getSubscription()) {
+            mUri = Uri.parse("content://telephony/carriers/preferapn_no_update");
+          } else {
+            mUri = Uri.parse("content://telephony/carriers/preferapn_no_update_sub2");
+          }
+        } else {
+           mUri = Uri.parse("content://telephony/carriers/preferapn_no_update");
+        }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     }
 
     @Override
@@ -659,10 +679,18 @@ public class GsmDataConnectionTracker extends DataConnectionTracker {
                      recordsLoaded) &&
                     (mPhone.getState() == Phone.State.IDLE ||
                      mPhone.getServiceStateTracker().isConcurrentVoiceAndDataAllowed()) &&
-                    internalDataEnabled &&
+                    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+                    /*internalDataEnabled &&*/
                     (!mPhone.getServiceState().getRoaming() || getDataOnRoamingEnabled()) &&
                     !mIsPsRestricted &&
-                    desiredPowerState;
+                    desiredPowerState &&
+                    mUserDataEnabled;
+                    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(!FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+          allowed = allowed && internalDataEnabled;
+        }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         if (!allowed && DBG) {
             String reason = "";
             if (!((gprsState == ServiceState.STATE_IN_SERVICE) || mAutoAttachOnCreation)) {
@@ -692,6 +720,14 @@ public class GsmDataConnectionTracker extends DataConnectionTracker {
         // Stop reconnect alarms on all data connections pending
         // retry. Reset ApnContext state to IDLE.
         log("setupDataOnReadyApns: " + reason);
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+           if(mInternalDataEnabled == false) {
+             log("****data connection is not allowd on non-preferred subscription.");
+             return;
+           }
+        }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
 
         for (DataConnectionAc dcac : mDataConnectionAsyncChannels.values()) {
             if (dcac.getReconnectIntentSync() != null) {
@@ -765,6 +801,15 @@ public class GsmDataConnectionTracker extends DataConnectionTracker {
                     " due to " + apnContext.getReason());
             log("trySetupData with mIsPsRestricted=" + mIsPsRestricted);
         }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        String apnType = apnContext.getApnType();
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+          if(mInternalDataEnabled == false && !apnType.equals(Phone.APN_TYPE_MMS))  {
+             log("*******default connection is not allowed on non-preferred subscription.");
+             return false;
+          }
+        }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
 
         if (mPhone.getSimulatedRadioControl() != null) {
             // Assume data is connected on the simulator
@@ -786,20 +831,38 @@ public class GsmDataConnectionTracker extends DataConnectionTracker {
         //    data connection is active.
         if (SUPPORT_MPDN == false
                 && !isAnyActiveApnContextHandlesType(apnContext.getApnType())) {
-            if (disconnectOneLowerPriorityCall(apnContext.getApnType())) {
-                log("Lower/Equal priority call disconnected.");
-                return false;
-            }
+            /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/				
+            if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+                 if(mInternalDataEnabled == true) {
+                    if (disconnectOneLowerPriorityCall(apnContext.getApnType())) {
+                        log("Lower/Equal priority call disconnected.");
+                        return false;
+                    }
 
-            if (isHigherPriorityDataCallActive(apnContext.getApnType())) {
-                log("Higher priority call active. Ignoring setup data call request.");
-                return false;
+                    if (isHigherPriorityDataCallActive(apnContext.getApnType())) {
+                        log("Higher priority call active. Ignoring setup data call request.");
+                        return false;
+                    }
+                 }
+            } else {
+                if (disconnectOneLowerPriorityCall(apnContext.getApnType())) {
+                    log("Lower/Equal priority call disconnected.");
+                    return false;
+                 }
+
+                if (isHigherPriorityDataCallActive(apnContext.getApnType())) {
+                    log("Higher priority call active. Ignoring setup data call request.");
+                    return false;
+                }
             }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         }
 
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
         if ((apnContext.getState() == State.IDLE || apnContext.getState() == State.SCANNING) &&
-                isDataAllowed(apnContext) && getAnyDataEnabled() && !isEmergency()) {
-
+                isDataAllowed(apnContext) && (FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G || getAnyDataEnabled()) &&
+                !isEmergency()) {
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
             if (apnContext.getState() == State.IDLE) {
                 ArrayList<DataProfile> waitingApns = buildWaitingApns(apnContext.getApnType());
                 if (waitingApns.isEmpty()) {
@@ -1172,6 +1235,23 @@ public class GsmDataConnectionTracker extends DataConnectionTracker {
     @Override
     protected void onApnChanged() {
         State overallState = getOverallState();
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        /*apn change function---start*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+           String apnChanged = (0 == mPhone.getSubscription())?Settings.System.APN_CHANGED_SUB1:Settings.System.APN_CHANGED_SUB2;
+           if(0 == Settings.System.getInt(mPhone.getContext().getContentResolver(),
+                                                     apnChanged,0))
+          {
+              log("onApnChanged: no effect, ignore it.");
+              return;
+          }
+          log("apnchanged is:"+apnChanged);
+
+          Settings.System.putInt(mPhone.getContext().getContentResolver(),
+                                         apnChanged,0);
+        }
+        /*apn change function---end*/
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         boolean isDisconnected = (overallState == State.IDLE || overallState == State.FAILED);
 
         if (mPhone instanceof GSMPhone) {
@@ -1183,10 +1263,21 @@ public class GsmDataConnectionTracker extends DataConnectionTracker {
         // match the current operator.
         if (DBG) log("onApnChanged: createAllApnList and cleanUpAllConnections");
         createAllApnList();
-        cleanUpAllConnections(!isDisconnected, Phone.REASON_APN_CHANGED);
-        if (isDisconnected) {
-            setupDataOnReadyApns(Phone.REASON_APN_CHANGED);
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+            if(isDataAllowed() && mInternalDataEnabled) {
+                cleanUpAllConnections(!isDisconnected, Phone.REASON_APN_CHANGED);
+                if (isDisconnected) {
+                    setupDataOnReadyApns(Phone.REASON_APN_CHANGED);
+                }
+            }
+        } else {
+            cleanUpAllConnections(!isDisconnected, Phone.REASON_APN_CHANGED);
+            if (isDisconnected) {
+                setupDataOnReadyApns(Phone.REASON_APN_CHANGED);
+            }
         }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     }
 
     /**
@@ -1757,11 +1848,19 @@ public class GsmDataConnectionTracker extends DataConnectionTracker {
      */
     private boolean retryAfterDisconnected(String reason) {
         boolean retry = true;
-
-        if (( Phone.REASON_RADIO_TURNED_OFF.equals(reason) )
-                || (!SUPPORT_MPDN && Phone.REASON_SINGLE_PDN_ARBITRATION.equals(reason)) ) {
-            retry = false;
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+            if (( Phone.REASON_RADIO_TURNED_OFF.equals(reason)  || Phone.REASON_DATA_DISABLED.equals(reason))
+                    || (!SUPPORT_MPDN && Phone.REASON_SINGLE_PDN_ARBITRATION.equals(reason)) ) {
+                retry = false;
+            }
+        } else {
+            if (( Phone.REASON_RADIO_TURNED_OFF.equals(reason) )
+                    || (!SUPPORT_MPDN && Phone.REASON_SINGLE_PDN_ARBITRATION.equals(reason)) ) {
+                retry = false;
+            }
         }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         return retry;
     }
 
@@ -2322,18 +2421,37 @@ public class GsmDataConnectionTracker extends DataConnectionTracker {
         }
 
         // If APN is still enabled, try to bring it back up automatically
-        if (apnContext.isReady() && retryAfterDisconnected(apnContext.getReason())) {
-            SystemProperties.set("gsm.defaultpdpcontext.active", "false");  // TODO - what the heck?  This shoudld go
-            // Wait a bit before trying the next APN, so that
-            // we're not tying up the RIL command channel.
-            // This also helps in any external dependency to turn off the context.
-            startAlarmForReconnect(APN_DELAY_MILLIS, apnContext);
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+            if (retryAfterDisconnected(apnContext.getReason())
+                 || (apnContext.getApnType() != null && !apnContext.getApnType().equals(Phone.APN_TYPE_DEFAULT)))
+            {
+                if(apnContext.isReady() ) {
+                  SystemProperties.set("gsm.defaultpdpcontext.active", "false");  // TODO - what the heck?  This shoudld go
+                  // Wait a bit before trying the next APN, so that
+                  // we're not tying up the RIL command channel.
+                  // This also helps in any external dependency to turn off the context.
+                  startAlarmForReconnect(APN_DELAY_MILLIS, apnContext);
+                }
+            } else {
+                apnContext.setApnSetting(null);
+                apnContext.setDataConnection(null);
+                apnContext.setDataConnectionAc(null);
+            }
         } else {
-            apnContext.setApnSetting(null);
-            apnContext.setDataConnection(null);
-            apnContext.setDataConnectionAc(null);
+            if (apnContext.isReady() && retryAfterDisconnected(apnContext.getReason())) {
+                SystemProperties.set("gsm.defaultpdpcontext.active", "false");  // TODO - what the heck?  This shoudld go
+                // Wait a bit before trying the next APN, so that
+                // we're not tying up the RIL command channel.
+                // This also helps in any external dependency to turn off the context.
+                startAlarmForReconnect(APN_DELAY_MILLIS, apnContext);
+            } else {
+                apnContext.setApnSetting(null);
+                apnContext.setDataConnection(null);
+                apnContext.setDataConnectionAc(null);
+            }
         }
-
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         if (SUPPORT_MPDN == false)
             setupDataOnReadyApns(Phone.REASON_SINGLE_PDN_ARBITRATION);
     }
@@ -2470,7 +2588,14 @@ public class GsmDataConnectionTracker extends DataConnectionTracker {
         int id = mUniqueIdGenerator.getAndIncrement();
         GsmDataConnection conn = GsmDataConnection.makeDataConnection(mPhone, id, rm, this);
         mDataConnections.put(id, conn);
-        DataConnectionAc dcac = new DataConnectionAc(conn, LOG_TAG);
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        DataConnectionAc   dcac;
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+           dcac = new DataConnectionAc(conn, LOG_TAG,mPhone.getSubscription());
+        } else {
+           dcac = new DataConnectionAc(conn, LOG_TAG);
+        }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         int status = dcac.fullyConnectSync(mPhone.getContext(), this, conn.getHandler());
         if (status == AsyncChannel.STATUS_SUCCESSFUL) {
             mDataConnectionAsyncChannels.put(dcac.dataConnection.getDataConnectionId(), dcac);
@@ -2608,26 +2733,45 @@ public class GsmDataConnectionTracker extends DataConnectionTracker {
 
         log("setPreferredApn: delete");
         ContentResolver resolver = mPhone.getContext().getContentResolver();
-        resolver.delete(PREFERAPN_NO_UPDATE_URI, null, null);
-
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+            resolver.delete(mUri, null, null);
+        } else {
+            resolver.delete(PREFERAPN_NO_UPDATE_URI, null, null);
+        }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         if (pos >= 0) {
             log("setPreferredApn: insert");
             ContentValues values = new ContentValues();
             values.put(APN_ID, pos);
-            resolver.insert(PREFERAPN_NO_UPDATE_URI, values);
+            /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+            if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+                resolver.insert(mUri, values);
+            } else {
+                resolver.insert(PREFERAPN_NO_UPDATE_URI, values);
+            }
+            /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         }
     }
 
     private DataProfile getPreferredApn() {
-        if (mAllApns.isEmpty()) {
+        if ((mAllApns == null) || mAllApns.isEmpty()) {
             log("getPreferredApn: X not found mAllApns.isEmpty");
             return null;
         }
 
-        Cursor cursor = mPhone.getContext().getContentResolver().query(
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        Cursor cursor = null;
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+            cursor = mPhone.getContext().getContentResolver().query(
+                mUri, new String[] { "_id", "name", "apn" },
+                null, null, Telephony.Carriers.DEFAULT_SORT_ORDER);
+        } else { 
+                cursor= mPhone.getContext().getContentResolver().query(
                 PREFERAPN_NO_UPDATE_URI, new String[] { "_id", "name", "apn" },
                 null, null, Telephony.Carriers.DEFAULT_SORT_ORDER);
-
+        }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         if (cursor != null) {
             canSetPreferApn = true;
         } else {
@@ -2775,7 +2919,15 @@ public class GsmDataConnectionTracker extends DataConnectionTracker {
     }
 
     protected IccRecords getUiccCardApplication() {
-        return  mUiccController.getIccRecords(UiccController.APP_FAM_3GPP);
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+            int subscription = mPhone.getSubscription();
+            log("subscription is"+subscription);
+            return  mUiccController.getIccRecords(subscription,UiccController.APP_FAM_3GPP);
+        } else {
+            return  mUiccController.getIccRecords(UiccController.APP_FAM_3GPP);
+        }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     }
 
     @Override

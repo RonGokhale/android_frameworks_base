@@ -36,6 +36,7 @@ import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.ITelephonyRegistry;
 import com.android.internal.telephony.ITelephonyRegistryMSim;
 
+import com.qrd.plugin.feature_query.FeatureQuery;
 /**
  * broadcast intents
  */
@@ -125,9 +126,17 @@ public class MSimDefaultPhoneNotifier extends DefaultPhoneNotifier {
     @Override
     public void notifyDataActivity(Phone sender) {
         try {
+         /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+         log("phoneNotifier,subscription = " + sender.getSubscription());
+         if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+            mMSimRegistry.notifyDataActivityWithSubscription(convertDataActivityState(sender.getDataActivityState()),
+                                                            sender.getSubscription());
+          } else {
             mMSimRegistry.notifyDataActivity(convertDataActivityState(
                     sender.getDataActivityState()));
             mRegistry.notifyDataActivity(convertDataActivityState(sender.getDataActivityState()));
+          }
+         /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         } catch (RemoteException ex) {
             // system process is dead
         }
@@ -144,10 +153,14 @@ public class MSimDefaultPhoneNotifier extends DefaultPhoneNotifier {
         int subscription = sender.getSubscription();
         int dds = MSimPhoneFactory.getDataSubscription();
         log("subscription = " + subscription + ", DDS = " + dds);
-        if (subscription != dds) {
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(!FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+          if (subscription != dds) {
             // This is not the current DDS, do not notify data connection state
             return;
+          }
         }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
 
         // TODO
         // use apnType as the key to which connection we're talking about.
@@ -165,6 +178,20 @@ public class MSimDefaultPhoneNotifier extends DefaultPhoneNotifier {
         if (ss != null) roaming = ss.getRoaming();
 
         try {
+            /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+            if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+               mMSimRegistry.notifyDataConnectionWithSubScription(
+                    convertDataState(state),
+                    sender.isDataConnectivityPossible(apnType), reason,
+                    sender.getActiveApnHost(apnType),
+                    apnType,
+                    linkProperties,
+                    linkCapabilities,
+                    ((telephony!=null) ? telephony.getNetworkType(subscription) :
+                    TelephonyManager.NETWORK_TYPE_UNKNOWN),
+                    roaming,
+                    subscription);
+            } else {
             mMSimRegistry.notifyDataConnection(
                     convertDataState(state),
                     sender.isDataConnectivityPossible(apnType), reason,
@@ -185,6 +212,8 @@ public class MSimDefaultPhoneNotifier extends DefaultPhoneNotifier {
                     ((telephony!=null) ? telephony.getNetworkType(subscription) :
                     TelephonyManager.NETWORK_TYPE_UNKNOWN),
                     roaming);
+          }
+            /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         } catch (RemoteException ex) {
             // system process is dead
         }
@@ -193,8 +222,14 @@ public class MSimDefaultPhoneNotifier extends DefaultPhoneNotifier {
     @Override
     public void notifyDataConnectionFailed(Phone sender, String reason, String apnType) {
         try {
-            mMSimRegistry.notifyDataConnectionFailed(reason, apnType);
-            mRegistry.notifyDataConnectionFailed(reason, apnType);
+           /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+           if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+              mMSimRegistry.notifyDataConnectionFailedWithSubScription(reason, apnType,sender.getSubscription());
+           } else {
+                mMSimRegistry.notifyDataConnectionFailed(reason, apnType);
+                mRegistry.notifyDataConnectionFailed(reason, apnType);
+           }
+           /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         } catch (RemoteException ex) {
             // system process is dead
         }

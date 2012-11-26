@@ -89,6 +89,7 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.qrd.plugin.feature_query.FeatureQuery;
 /**
  * {@hide}
  */
@@ -1537,6 +1538,12 @@ public class GSMPhone extends PhoneBase {
                 mUiccApplication.set(newUiccApplication);
                 mSimCard = mUiccApplication.get().getCard();
                 mIccRecords.set(newUiccApplication.getIccRecords());
+                /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+                if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+                   GsmDataConnectionTracker tracker = (GsmDataConnectionTracker)mDataConnectionTracker;
+                   tracker.onUpdateIcc();
+                }
+                /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
                 registerForSimRecordEvents();
                 mSimPhoneBookIntManager.updateIccRecords(mIccRecords.get());
             }

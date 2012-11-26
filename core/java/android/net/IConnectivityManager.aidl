@@ -153,4 +153,12 @@ interface IConnectivityManager
     boolean removeQosRegistration(int id);
 
     void setTrackedCapabilities(int id, in int[] capabilities);
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    NetworkInfo getNetworkInfoWithSubScription(int networkType,int subscription);
+    int startUsingNetworkFeatureWithSubScription(int networkType, in String feature,int subscription,
+            in IBinder binder);
+    int stopUsingNetworkFeatureWithSubScription(int networkType, in String feature,int subscription);
+    boolean requestRouteToHostWithSubScription(int networkType, int hostAddress,int subscription);
+    void setPreferredSubscription(int subscription);
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
 }

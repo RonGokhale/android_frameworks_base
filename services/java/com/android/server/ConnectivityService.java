@@ -115,10 +115,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import android.net.MSimMobileDataStateTracker;
 
 import dalvik.system.PathClassLoader;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import android.telephony.MSimTelephonyManager;
+import android.telephony.TelephonyManager;
+import com.qrd.plugin.feature_query.FeatureQuery;
 
 /**
  * @hide
@@ -337,6 +341,10 @@ public class ConnectivityService extends IConnectivityManager.Stub {
     private ProxyProperties mGlobalProxy = null;
     private final Object mGlobalProxyLock = new Object();
 
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    private static final int MMSSUB0 = 0;   //cardslot 1
+    private static final int MMSSUB1 = 1;  //cardslot 2
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     private SettingsObserver mSettingsObserver;
 
     NetworkConfig[] mNetConfigs;
@@ -566,8 +574,20 @@ public class ConnectivityService extends IConnectivityManager.Stub {
                 mNetTrackers[netType].startMonitoring(context, mHandler);
                break;
             case ConnectivityManager.TYPE_MOBILE:
-                mNetTrackers[netType] = new MobileDataStateTracker(netType,
+               /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+               if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+                  if(netType == ConnectivityManager.TYPE_MOBILE_MMS) {
+                     mNetTrackers[netType] = new MSimMobileDataStateTracker(netType,
                         mNetConfigs[netType].name);
+                  } else {
+                     mNetTrackers[netType] = new MobileDataStateTracker(netType,
+                        mNetConfigs[netType].name);
+                  }
+               } else {
+                  mNetTrackers[netType] = new MobileDataStateTracker(netType,
+                        mNetConfigs[netType].name);
+               }
+               /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
                 mNetTrackers[netType].startMonitoring(context, mHandler);
                 break;
             case ConnectivityManager.TYPE_DUMMY:
@@ -832,6 +852,262 @@ private NetworkStateTracker makeWimaxStateTracker() {
         return info;
     }
 
+   /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    /**
+     * Return a filtered {@link NetworkInfo}, potentially marked
+     * {@link DetailedState#BLOCKED} based on
+     * {@link #isNetworkBlocked(NetworkStateTracker, int)}.
+     */
+    private NetworkInfo getFilteredNetworkInfo(NetworkStateTracker tracker, int uid,int subscription) {
+        if(!(tracker instanceof MSimMobileDataStateTracker)) return null;
+        MSimMobileDataStateTracker network = (MSimMobileDataStateTracker)tracker;
+        if(subscription <0 || subscription >1) subscription = 0;
+        NetworkInfo info = network.getNetworkInfo(subscription);
+        if (isNetworkBlocked(tracker, uid)) {
+            // network is blocked; clone and override state
+            info = new NetworkInfo(info);
+            info.setDetailedState(DetailedState.BLOCKED, null, null);
+        }
+        return info;
+    }
+
+    @Override
+    public NetworkInfo getNetworkInfoWithSubScription(int networkType,int subscription) {
+        enforceAccessPermission();
+        final int uid = Binder.getCallingUid();
+        return getNetworkInfo(networkType, uid,subscription);
+    }
+
+    private NetworkInfo getNetworkInfo(int networkType, int uid,int subscription) {
+        NetworkInfo info = null;
+        if (isNetworkTypeValid(networkType)) {
+            final NetworkStateTracker tracker = mNetTrackers[networkType];
+            if (tracker != null) {
+                info = getFilteredNetworkInfo(tracker, uid,subscription);
+            }
+        }
+        return info;
+    }
+
+   public int startUsingNetworkFeatureWithSubScription(int networkType, String feature,int subscription,
+                      IBinder binder) {
+        if (VDBG) {
+          log("startUsingNetworkFeatureWithSubScription for net " + networkType + ": " + feature+"subscription:"+subscription);
+        }
+        enforceChangePermission();
+        if (!ConnectivityManager.isNetworkTypeValid(networkType) ||
+             mNetConfigs[networkType] == null) {
+           return Phone.APN_REQUEST_FAILED;
+        }
+
+        FeatureUser f = new FeatureUser(networkType, feature, binder);
+
+        // TODO - move this into individual networktrackers
+        int usedNetworkType = convertFeatureToNetworkType(networkType, feature);
+        if (mProtectedNetworks.contains(usedNetworkType)) {
+           enforceConnectivityInternalPermission();
+        }
+
+        NetworkStateTracker tempNetwork = mNetTrackers[usedNetworkType];
+        if(! (tempNetwork != null && tempNetwork instanceof MSimMobileDataStateTracker)) {
+           if (DBG) log("####this is not multiple connection.please call another startUsingNetworkFeature");
+           return Phone.APN_REQUEST_FAILED;
+        }
+
+        MSimMobileDataStateTracker network = (MSimMobileDataStateTracker)tempNetwork;
+        NetworkInfo info = network.getNetworkInfo(subscription);
+        if(info.isConnectedOrConnecting() == true)  {
+           if(info.isConnected()) {
+               if (DBG) log(networkType+"subscription :"+subscription+"already active.");
+               return Phone.APN_ALREADY_ACTIVE;
+           } else {
+           log("startUsingNetworkFeatureWithSubScription return  Phone.APN_REQUEST_STARTED "  );
+               return Phone.APN_REQUEST_STARTED;
+           }
+        }
+log("-- info.isConnectedOrConnecting() " + info.isConnectedOrConnecting() );
+        if (network != null) {
+           Integer currentPid = new Integer(getCallingPid());
+           if (usedNetworkType != networkType) {
+              NetworkInfo ni = network.getNetworkInfo(subscription);
+
+              if (/*ni.isAvailable() == */false) {
+                 if (DBG) log("special network not available");
+                 if (!TextUtils.equals(feature,Phone.FEATURE_ENABLE_DUN_ALWAYS)) {
+                    return Phone.APN_TYPE_NOT_AVAILABLE;
+                 } else {
+                    // else make the attempt anyway - probably giving REQUEST_STARTED below
+                 }
+              }
+
+              int restoreTimer = 4*60*1000; //getRestoreDefaultNetworkDelay(usedNetworkType);
+              synchronized(this) {
+                  boolean addToList = true;
+                  if (restoreTimer < 0) {
+                        // In case there is no timer is specified for the feature,
+                        // make sure we don't add duplicate entry with the same request.
+                        for (FeatureUser u : mFeatureUsers) {
+                            if (u.isSameUser(f)) {
+                                // Duplicate user is found. Do not add.
+                                addToList = false;
+                                break;
+                            }
+                        }
+                   }
+
+                   if (addToList) mFeatureUsers.add(f);
+                   if (!mNetRequestersPids[usedNetworkType].contains(currentPid)) {
+                       // this gets used for per-pid dns when connected
+                       mNetRequestersPids[usedNetworkType].add(currentPid);
+                   }
+              }
+
+                if (restoreTimer >= 0) {
+                    mHandler.sendMessageDelayed(
+                            mHandler.obtainMessage(EVENT_RESTORE_DEFAULT_NETWORK, f), restoreTimer);
+                }
+
+                if ((ni.isConnectedOrConnecting() == true) &&
+                     !network.isTeardownRequested()) {
+                    if (ni.isConnected() == true) {
+                        final long token = Binder.clearCallingIdentity();
+                        try {
+                            // add the pid-specific dns
+                            handleDnsConfigurationChange(usedNetworkType);
+                            if (VDBG) log("special network already active");
+                        } finally {
+                            Binder.restoreCallingIdentity(token);
+                        }
+                        return Phone.APN_ALREADY_ACTIVE;
+                    }
+                    if (VDBG) log("special network already connecting");
+                    return Phone.APN_REQUEST_STARTED;
+                }
+
+                // check if the radio in play can make another contact
+                // assume if cannot for now
+
+                if (DBG) {
+                    log("startUsingNetworkFeature reconnecting to " + networkType + ": " + feature);
+                }
+                network.reconnect(subscription);
+                return Phone.APN_REQUEST_STARTED;
+            } else {
+                // need to remember this unsupported request so we respond appropriately on stop
+                synchronized(this) {
+                    mFeatureUsers.add(f);
+                    if (!mNetRequestersPids[usedNetworkType].contains(currentPid)) {
+                        // this gets used for per-pid dns when connected
+                        mNetRequestersPids[usedNetworkType].add(currentPid);
+                    }
+                }
+                return -1;
+            }
+        }
+        return Phone.APN_TYPE_NOT_AVAILABLE;
+    }
+
+    private int stopUsingNetworkFeatureWithSubScription(FeatureUser u, boolean ignoreDups,int subscription) {
+        int networkType = u.mNetworkType;
+        String feature = u.mFeature;
+        int pid = u.mPid;
+        int uid = u.mUid;
+
+        NetworkStateTracker tracker = null;
+        boolean callTeardown = false;  // used to carry our decision outside of sync block
+
+        if (VDBG) {
+            log("stopUsingNetworkFeature: net " + networkType + ": " + feature);
+        }
+
+        if (!ConnectivityManager.isNetworkTypeValid(networkType)) {
+            if (DBG) {
+                log("stopUsingNetworkFeature: net " + networkType + ": " + feature +
+                        ", net is invalid");
+            }
+            return -1;
+        }
+
+        // need to link the mFeatureUsers list with the mNetRequestersPids state in this
+        // sync block
+        synchronized(this) {
+            // check if this process still has an outstanding start request
+            if (!mFeatureUsers.contains(u)) {
+                if (VDBG) {
+                    log("stopUsingNetworkFeature: this process has no outstanding requests" +
+                        ", ignoring");
+                }
+                return 1;
+            }
+            u.unlinkDeathRecipient();
+            mFeatureUsers.remove(mFeatureUsers.indexOf(u));
+            // If we care about duplicate requests, check for that here.
+            //
+            // This is done to support the extension of a request - the app
+            // can request we start the network feature again and renew the
+            // auto-shutoff delay.  Normal "stop" calls from the app though
+            // do not pay attention to duplicate requests - in effect the
+            // API does not refcount and a single stop will counter multiple starts.
+            if (ignoreDups == false) {
+                for (FeatureUser x : mFeatureUsers) {
+                    if (x.isSameUser(u)) {
+                        if (VDBG) log("stopUsingNetworkFeature: dup is found, ignoring");
+                        return 1;
+                    }
+                }
+            }
+
+            // TODO - move to individual network trackers
+            int usedNetworkType = convertFeatureToNetworkType(networkType, feature);
+
+            tracker =  mNetTrackers[usedNetworkType];
+            if (tracker == null) {
+                if (DBG) {
+                    log("stopUsingNetworkFeature: net " + networkType + ": " + feature +
+                            " no known tracker for used net type " + usedNetworkType);
+                }
+                return -1;
+            }
+
+            if(!(tracker instanceof MSimMobileDataStateTracker)) {
+               if(DBG) {
+                 log("####this tracker not support multiple connection,please call another stopUsingNetworkFeature");
+               }
+               return -1;
+           }
+
+            if (usedNetworkType != networkType) {
+                Integer currentPid = new Integer(pid);
+                mNetRequestersPids[usedNetworkType].remove(currentPid);
+                //reassessPidDns(pid, true);
+                if (mNetRequestersPids[usedNetworkType].size() != 0) {
+                    if (VDBG) {
+                        log("stopUsingNetworkFeature: net " + networkType + ": " + feature +
+                                " others still using it");
+                    }
+                    return 1;
+                }
+                callTeardown = true;
+            } else {
+                if (DBG) {
+                    log("stopUsingNetworkFeature: net " + networkType + ": " + feature +
+                            " not a known feature - dropping");
+                }
+            }
+        }
+
+        if (callTeardown) {
+            if (DBG) {
+                log("stopUsingNetworkFeature: teardown net " + networkType + ": " + feature);
+            }
+            MSimMobileDataStateTracker nt = (MSimMobileDataStateTracker)tracker;
+            nt.teardown(subscription);
+            return 1;
+        } else {
+            return -1;
+        }
+    }
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     /**
      * Return NetworkInfo for the active (i.e., connected) network interface.
      * It is assumed that at most one network is active at a time. If more
@@ -1237,6 +1513,49 @@ private NetworkStateTracker makeWimaxStateTracker() {
             return 1;
         }
     }
+	/*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    public int stopUsingNetworkFeatureWithSubScription(int networkType, String feature,int subscription) {
+        enforceChangePermission();
+
+        int pid = getCallingPid();
+        int uid = getCallingUid();
+
+        FeatureUser u = null;
+        boolean found = false;
+
+        synchronized(this) {
+            for (FeatureUser x : mFeatureUsers) {
+                if (x.isSameUser(pid, uid, networkType, feature)) {
+                    u = x;
+                    found = true;
+                    break;
+                }
+            }
+        }
+
+        /*W+G concurrence,start*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+          if(!found) {
+             int usedNetworkType = convertFeatureToNetworkType(networkType, feature);
+             MSimMobileDataStateTracker tracker = (MSimMobileDataStateTracker)mNetTrackers[usedNetworkType];
+             NetworkInfo nt = tracker.getNetworkInfo(subscription);
+             if(nt != null && nt.isConnected()) {
+               tracker.teardown(subscription);
+             }
+          }
+        }
+        /*W+G concurrence,end*/
+
+        if (found && u != null) {
+            // stop regardless of how many other time this proc had called start
+            return stopUsingNetworkFeature(u, true,subscription);
+        } else {
+            // none found!
+            if (VDBG) log("stopUsingNetworkFeature - not a live request, ignoring");
+            return 1;
+        }
+    }
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
 
     private int stopUsingNetworkFeature(FeatureUser u, boolean ignoreDups) {
         int networkType = u.mNetworkType;
@@ -1330,6 +1649,107 @@ private NetworkStateTracker makeWimaxStateTracker() {
         }
     }
 
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    private int stopUsingNetworkFeature(FeatureUser u, boolean ignoreDups,int subscription) {
+        int networkType = u.mNetworkType;
+        String feature = u.mFeature;
+        int pid = u.mPid;
+        int uid = u.mUid;
+
+        NetworkStateTracker tracker = null;
+        boolean callTeardown = false;  // used to carry our decision outside of sync block
+
+        if (VDBG) {
+            log("stopUsingNetworkFeature: net " + networkType + ": " + feature);
+        }
+
+        if (!ConnectivityManager.isNetworkTypeValid(networkType)) {
+            if (DBG) {
+                log("stopUsingNetworkFeature: net " + networkType + ": " + feature +
+                        ", net is invalid");
+            }
+            return -1;
+        }
+
+        // need to link the mFeatureUsers list with the mNetRequestersPids state in this
+        // sync block
+        synchronized(this) {
+            // check if this process still has an outstanding start request
+            if (!mFeatureUsers.contains(u)) {
+                if (VDBG) {
+                    log("stopUsingNetworkFeature: this process has no outstanding requests" +
+                        ", ignoring");
+                }
+                return 1;
+            }
+            u.unlinkDeathRecipient();
+            mFeatureUsers.remove(mFeatureUsers.indexOf(u));
+            // If we care about duplicate requests, check for that here.
+            //
+            // This is done to support the extension of a request - the app
+            // can request we start the network feature again and renew the
+            // auto-shutoff delay.  Normal "stop" calls from the app though
+            // do not pay attention to duplicate requests - in effect the
+            // API does not refcount and a single stop will counter multiple starts.
+            if (ignoreDups == false) {
+                for (FeatureUser x : mFeatureUsers) {
+                    if (x.isSameUser(u)) {
+                        if (VDBG) log("stopUsingNetworkFeature: dup is found, ignoring");
+                        return 1;
+                    }
+                }
+            }
+
+            // TODO - move to individual network trackers
+            int usedNetworkType = convertFeatureToNetworkType(networkType, feature);
+
+            tracker =  mNetTrackers[usedNetworkType];
+            if (tracker == null) {
+                if (DBG) {
+                    log("stopUsingNetworkFeature: net " + networkType + ": " + feature +
+                            " no known tracker for used net type " + usedNetworkType);
+                }
+                return -1;
+            }
+
+            if(!(tracker instanceof MSimMobileDataStateTracker)) {
+              if(DBG) {
+                log("####this tracker not support multiple connection,please call another stopUsingNetworkFeature"); 
+              }
+              return -1;
+            }
+
+            if (usedNetworkType != networkType) {
+                Integer currentPid = new Integer(pid);
+                mNetRequestersPids[usedNetworkType].remove(currentPid);
+                reassessPidDns(pid, true);
+                if (mNetRequestersPids[usedNetworkType].size() != 0) {
+                    if (VDBG) {
+                        log("stopUsingNetworkFeature: net " + networkType + ": " + feature +
+                                " others still using it");
+                    }
+                    return 1;
+                }
+                callTeardown = true;
+            } else {
+                if (DBG) {
+                    log("stopUsingNetworkFeature: net " + networkType + ": " + feature +
+                            " not a known feature - dropping");
+                }
+            }
+        }
+
+        if (callTeardown) {
+            if (DBG) {
+                log("stopUsingNetworkFeature: teardown net " + networkType + ": " + feature);
+            }
+            ((MSimMobileDataStateTracker)tracker).teardown(subscription);
+            return 1;
+        } else {
+            return -1;
+        }
+    }
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     /**
      * @deprecated use requestRouteToHostAddress instead
      *
@@ -1392,6 +1812,65 @@ private NetworkStateTracker makeWimaxStateTracker() {
         }
         return false;
     }
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    public void setPreferredSubscription(int subscription)  {
+         NetworkInfo info;
+         synchronized (mRulesLock) {
+            for (NetworkStateTracker tracker : mNetTrackers) {
+                if (tracker != null && (tracker instanceof MobileDataStateTracker)) {
+                     info = tracker.getNetworkInfo();
+                     info.setSubscription(subscription);
+                }
+            }
+        }
+    }
+
+    public boolean requestRouteToHostWithSubScription(int networkType, int hostAddress,int subscription) {
+       InetAddress inetAddress = NetworkUtils.intToInetAddress(hostAddress);
+
+       if (inetAddress == null) {
+         return false;
+       }
+
+       return requestRouteToHostAddress(networkType, inetAddress.getAddress(),subscription);
+    }
+
+    public boolean requestRouteToHostAddress(int networkType, byte[] hostAddress,int subscription) {
+        enforceChangePermission();
+        if (mProtectedNetworks.contains(networkType)) {
+            enforceConnectivityInternalPermission();
+        }
+
+        if (!ConnectivityManager.isNetworkTypeValid(networkType)) {
+            if (DBG) log("requestRouteToHostAddress on invalid network: " + networkType);
+            return false;
+        }
+        MSimMobileDataStateTracker tracker = null;
+        if(mNetTrackers[networkType] instanceof MSimMobileDataStateTracker) {
+           tracker = (MSimMobileDataStateTracker)mNetTrackers[networkType];
+        }
+
+        if (tracker == null || !tracker.getNetworkInfo(subscription).isConnected() ||
+                tracker.isTeardownRequested(subscription)) {
+            if (VDBG) {
+                log("requestRouteToHostAddress on down network " +
+                           "(" + networkType + ") - dropped");
+            }
+            return false;
+        }
+        final long token = Binder.clearCallingIdentity();
+        try {
+            InetAddress addr = InetAddress.getByAddress(hostAddress);
+            LinkProperties lp = tracker.getLinkProperties(subscription);
+            return addRouteToAddress(lp, addr);
+        } catch (UnknownHostException e) {
+            if (DBG) log("requestRouteToHostAddress got " + e.toString());
+        } finally {
+            Binder.restoreCallingIdentity(token);
+        }
+        return false;
+    }
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
 
     private boolean addRoute(LinkProperties p, RouteInfo r, boolean toDefaultTable) {
         return modifyRoute(p.getInterfaceName(), p, r, 0, ADD, toDefaultTable);
@@ -1598,12 +2077,22 @@ private NetworkStateTracker makeWimaxStateTracker() {
     }
 
     private void handleSetMobileData(boolean enabled) {
-        if (mNetTrackers[ConnectivityManager.TYPE_MOBILE] != null) {
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(!FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+          if (mNetTrackers[ConnectivityManager.TYPE_MOBILE] != null) {
             if (VDBG) {
                 log(mNetTrackers[ConnectivityManager.TYPE_MOBILE].toString() + enabled);
             }
             mNetTrackers[ConnectivityManager.TYPE_MOBILE].setUserDataEnable(enabled);
+          }
+        } else {
+          MSimMobileDataStateTracker tracker = (MSimMobileDataStateTracker)mNetTrackers[ConnectivityManager.TYPE_MOBILE_MMS];
+          if(tracker != null) {
+            tracker.setUserDataEnable(enabled,0);
+            tracker.setUserDataEnable(enabled,1);
+          }
         }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         if (mNetTrackers[ConnectivityManager.TYPE_WIMAX] != null) {
             if (VDBG) {
                 log(mNetTrackers[ConnectivityManager.TYPE_WIMAX].toString() + enabled);
@@ -1672,7 +2161,42 @@ private NetworkStateTracker makeWimaxStateTracker() {
 
         int prevNetType = info.getType();
 
-        mNetTrackers[prevNetType].setTeardownRequested(false);
+		/*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        log("type is:"+prevNetType);
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+          if(mNetTrackers[prevNetType] instanceof MSimMobileDataStateTracker) {
+             MSimMobileDataStateTracker network = (MSimMobileDataStateTracker)mNetTrackers[prevNetType];
+             network.setTeardownRequested(false,info.getSubscription());
+          } else {
+             mNetTrackers[prevNetType].setTeardownRequested(false);
+          }
+        } else {
+             mNetTrackers[prevNetType].setTeardownRequested(false);
+        }
+
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+          MSimMobileDataStateTracker ntmms = (MSimMobileDataStateTracker)mNetTrackers[ConnectivityManager.TYPE_MOBILE_MMS];
+          if(!ntmms.getNetworkInfo(MMSSUB1).isConnectedOrConnecting()) {
+              if(mActiveDefaultNetwork != -1){
+                if(mActiveDefaultNetwork == ConnectivityManager.TYPE_WIFI){
+                    if (VDBG) {
+                        log("Setting TCP values: [" + SystemProperties.get("net.tcp.buffersize.wifi")
+                                + "] which comes from [net.tcp.buffersize.wifi]");
+                    }
+                    setBufferSize(SystemProperties.get("net.tcp.buffersize.wifi"));
+                } else {
+                    //Modify the TCP buffer to the other phone
+                    int switchtosub = 0;
+                    if(info.getSubscription() == 0)
+                        switchtosub = 1;
+                    updateNetworkSettings(switchtosub, ConnectivityManager.TYPE_MOBILE);
+                }
+              }
+          } else {
+            if (VDBG) log("handleDisconnect:  MMS is in SUB1");
+          }
+        } 
+       /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         /*
          * If the disconnected network is not the active one, then don't report
          * this as a loss of connectivity. What probably happened is that we're
@@ -1738,7 +2262,17 @@ private NetworkStateTracker makeWimaxStateTracker() {
         }
 
         // do this before we broadcast the change
-        handleConnectivityChange(prevNetType, doReset);
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+           if(prevNetType == ConnectivityManager.TYPE_MOBILE_MMS) {
+             log("no need to do anything.");
+           } else {
+             handleConnectivityChange(prevNetType, doReset);
+           }
+        } else {
+             handleConnectivityChange(prevNetType, doReset);
+        }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
 
         final Intent immediateIntent = new Intent(intent);
         immediateIntent.setAction(CONNECTIVITY_ACTION_IMMEDIATE);
@@ -1846,7 +2380,19 @@ private NetworkStateTracker makeWimaxStateTracker() {
      * @param info the {@link NetworkInfo} for the failed network
      */
     private void handleConnectionFailure(NetworkInfo info) {
-        mNetTrackers[info.getType()].setTeardownRequested(false);
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+           NetworkStateTracker nt = mNetTrackers[info.getType()];
+           if(nt instanceof MSimMobileDataStateTracker) {
+             MSimMobileDataStateTracker network = (MSimMobileDataStateTracker)nt;
+             network.setTeardownRequested(false,info.getSubscription());
+           } else {
+             mNetTrackers[info.getType()].setTeardownRequested(false);
+           }
+        } else {
+          mNetTrackers[info.getType()].setTeardownRequested(false);
+        }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
 
         String reason = info.getReason();
         String extraInfo = info.getExtraInfo();
@@ -2000,12 +2546,53 @@ private NetworkStateTracker makeWimaxStateTracker() {
             //reportNetworkCondition(mActiveDefaultNetwork, 100);
         }
         thisNet.setTeardownRequested(false);
-        updateNetworkSettings(thisNet);
-        handleConnectivityChange(type, false);
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+            //It want to send or receive MMS successfully in SUB1, so the TCP buffer is must set gprs_mms.
+            MSimMobileDataStateTracker ntmms = (MSimMobileDataStateTracker)mNetTrackers[ConnectivityManager.TYPE_MOBILE_MMS];
+            if(ntmms.getNetworkInfo(MMSSUB1).isConnected())  {
+                log("handleConnect:  MMS is in sub1, so the TCP buffer is set gprs_mms");
+              updateNetworkSettings(MMSSUB1, ConnectivityManager.TYPE_MOBILE_MMS);
+            } else{
+                if(type == ConnectivityManager.TYPE_MOBILE_MMS ||
+                          type == ConnectivityManager.TYPE_MOBILE) {
+                    updateNetworkSettings(info.getSubscription(), type);
+                } else {
+                  updateNetworkSettings(thisNet);
+                }
+            }
+        } else {
+          updateNetworkSettings(thisNet);
+        }
+
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+           if(type == ConnectivityManager.TYPE_MOBILE_MMS) {
+              MSimMobileDataStateTracker nt = (MSimMobileDataStateTracker)mNetTrackers[type];
+              nt.setTeardownRequested(false,info.getSubscription());
+          } else {
+             thisNet.setTeardownRequested(false);
+             handleConnectivityChange(type, false);
+          }
+        } else {
+            thisNet.setTeardownRequested(false);
+          handleConnectivityChange(type, false);
+        }
+		
         sendConnectedBroadcastDelayed(info, getConnectivityChangeDelay());
 
         // notify battery stats service about this network
-        final String iface = thisNet.getLinkProperties().getInterfaceName();
+        final String iface;
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+          if(thisNet instanceof MSimMobileDataStateTracker) {
+             MSimMobileDataStateTracker network = (MSimMobileDataStateTracker)thisNet;
+             iface = network.getLinkProperties(info.getSubscription()).getInterfaceName();
+          } else {
+             iface = thisNet.getLinkProperties().getInterfaceName();
+          }
+        } else {
+          iface = thisNet.getLinkProperties().getInterfaceName();
+        }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         if (iface != null) {
             try {
                 BatteryStatsService.getService().noteNetworkInterfaceType(iface, type);
@@ -2282,6 +2869,114 @@ private NetworkStateTracker makeWimaxStateTracker() {
         }
     }
 
+   /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+   /**
+ * Return the system properties name associated with the tcp buffer sizes
+ * for this network.
+ */
+    public String getTcpBufferSizesPropNameForMobile(int sub)
+    {
+        String networkTypeStr = "unknown";
+        int networkType = MSimTelephonyManager.getDefault().getNetworkType(sub);
+        switch(networkType)
+        {
+        case TelephonyManager.NETWORK_TYPE_GPRS:
+            networkTypeStr = "gprs";
+            break;
+
+        case TelephonyManager.NETWORK_TYPE_EDGE:
+            networkTypeStr = "edge";
+            break;
+
+        case TelephonyManager.NETWORK_TYPE_UMTS:
+            networkTypeStr = "umts";
+            break;
+
+        case TelephonyManager.NETWORK_TYPE_HSDPA:
+            networkTypeStr = "hsdpa";
+            break;
+
+        case TelephonyManager.NETWORK_TYPE_HSUPA:
+            networkTypeStr = "hsupa";
+            break;
+
+        case TelephonyManager.NETWORK_TYPE_HSPA:
+        case TelephonyManager.NETWORK_TYPE_HSPAP:
+            networkTypeStr = "hspa";
+            break;
+
+        case TelephonyManager.NETWORK_TYPE_CDMA:
+            networkTypeStr = "cdma";
+            break;
+
+        case TelephonyManager.NETWORK_TYPE_1xRTT:
+            networkTypeStr = "1xrtt";
+            break;
+
+        case TelephonyManager.NETWORK_TYPE_EVDO_0:
+            networkTypeStr = "evdo";
+            break;
+
+        case TelephonyManager.NETWORK_TYPE_EVDO_A:
+            networkTypeStr = "evdo";
+            break;
+
+        case TelephonyManager.NETWORK_TYPE_EVDO_B:
+            networkTypeStr = "evdo_b";
+            break;
+
+        case TelephonyManager.NETWORK_TYPE_IDEN:
+            networkTypeStr = "iden";
+            break;
+
+        case TelephonyManager.NETWORK_TYPE_LTE:
+            networkTypeStr = "lte";
+            break;
+
+        case TelephonyManager.NETWORK_TYPE_EHRPD:
+            networkTypeStr = "ehrpd";
+            break;
+
+        default:
+            loge("unknown network type: " + networkType);
+        }
+
+        return "net.tcp.buffersize." + networkTypeStr;
+    }
+   
+   /**
+     * Reads the network specific TCP buffer sizes from SystemProperties
+     * net.tcp.buffersize.[default|wifi|umts|edge|gprs] and set them for system
+     * wide use
+     */
+   public void updateNetworkSettings(int sub, int type) {
+        String key = getTcpBufferSizesPropNameForMobile(sub);
+        String bufferSizes = "";
+
+        if(/*key.equals("net.tcp.buffersize.gprs") && */type == ConnectivityManager.TYPE_MOBILE_MMS)
+            key = "net.tcp.buffersize.gprs_mms";
+
+        bufferSizes = SystemProperties.get(key);
+        
+        if (bufferSizes.length() == 0) {
+            if (VDBG) log(key + " not found in system properties. Using defaults");
+
+            // Setting to default values so we won't be stuck to previous values
+            key = "net.tcp.buffersize.default";
+            bufferSizes = SystemProperties.get(key);
+        }
+
+        // Set values in kernel
+        if (bufferSizes.length() != 0) {
+            if (VDBG) {
+                log("Setting TCP values: [" + bufferSizes
+                        + "] which comes from [" + key + "]");
+            }
+            setBufferSize(bufferSizes);
+        }
+    }
+
+   /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
    /**
      * Writes TCP buffer sizes to /sys/kernel/ipv4/tcp_[r/w]mem_[min/def/max]
      * which maps to /proc/sys/net/ipv4/tcp_rmem and tcpwmem

@@ -53,7 +53,7 @@ import com.android.internal.telephony.Phone;
 import com.android.internal.telephony.ServiceStateTracker;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.server.am.BatteryStatsService;
-
+import com.qrd.plugin.feature_query.FeatureQuery;
 /**
  * Since phone process can be restarted, this class provides a centralized place
  * that applications can register and be called back from.
@@ -95,7 +95,9 @@ class MSimTelephonyRegistry extends ITelephonyRegistryMSim.Stub {
     private boolean[] mCallForwarding;
 
     private int mDataActivity = TelephonyManager.DATA_ACTIVITY_NONE;
-
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    private int mDataActivitySub1 = TelephonyManager.DATA_ACTIVITY_NONE;
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     private int mDataConnectionState = TelephonyManager.DATA_UNKNOWN;
 
     private boolean mDataConnectionPossible = false;
@@ -105,6 +107,10 @@ class MSimTelephonyRegistry extends ITelephonyRegistryMSim.Stub {
     private String mDataConnectionApn = "";
 
     private ArrayList<String> mConnectedApns;
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    private int mDataConnectionStateSub1 = TelephonyManager.DATA_UNKNOWN;
+    private ArrayList<String> mConnectedApnsSub1;
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
 
     private LinkProperties mDataConnectionLinkProperties;
 
@@ -140,7 +146,9 @@ class MSimTelephonyRegistry extends ITelephonyRegistryMSim.Stub {
         mContext = context;
         mBatteryStats = BatteryStatsService.getService();
         mConnectedApns = new ArrayList<String>();
-
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        mConnectedApnsSub1 = new ArrayList<String>();
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         // Initialize default subscription to be used for single standby.
         mDefaultSubscription = MSimTelephonyManager.getDefault().getDefaultSubscription();
 
@@ -252,9 +260,14 @@ class MSimTelephonyRegistry extends ITelephonyRegistryMSim.Stub {
                         }
                     }
                     if ((events & PhoneStateListener.LISTEN_DATA_CONNECTION_STATE) != 0) {
-                        try {
-                            r.callback.onDataConnectionStateChanged(mDataConnectionState,
+                        try { /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+                             if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+                                r.callback.onDataConnectionStateChanged((subscription == 0)?mDataConnectionState:mDataConnectionStateSub1,
                                     mDataConnectionNetworkType);
+                            } else {
+                                r.callback.onDataConnectionStateChanged(mDataConnectionState,
+                                    mDataConnectionNetworkType);
+                            } /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
                         } catch (RemoteException ex) {
                             remove(r.binder);
                         }
@@ -442,6 +455,30 @@ class MSimTelephonyRegistry extends ITelephonyRegistryMSim.Stub {
         }
     }
 
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
+    public void notifyDataActivityWithSubscription(int state,int subscription) {
+        if (!checkNotifyPermission("notifyDataActivity()" )) {
+            return;
+        }
+        Slog.i(TAG, "notifyDataActivityWithSubscription,subscription:"+subscription);
+        synchronized (mRecords)  {
+            if(subscription == 0)
+               mDataActivity = state;
+            else if(subscription == 1)
+               mDataActivitySub1 = state;
+            for (Record r : mRecords)  {
+                if (((subscription == r.subscription) && (r.events & PhoneStateListener.LISTEN_DATA_ACTIVITY) != 0)) {
+                    try {
+                        r.callback.onDataActivity((subscription ==0)?mDataActivity:mDataActivitySub1);
+                    } catch (RemoteException ex) {
+                        mRemoveList.add(r.binder);
+                    }
+                }
+            }
+            handleRemoveListLocked();
+        }
+    }
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     public void notifyDataActivity(int state) {
         if (!checkNotifyPermission("notifyDataActivity()" )) {
             return;
@@ -460,6 +497,143 @@ class MSimTelephonyRegistry extends ITelephonyRegistryMSim.Stub {
             handleRemoveListLocked();
         }
     }
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    public void notifyDataConnectionWithSubScription(int state, boolean isDataConnectivityPossible,
+            String reason, String apn, String apnType, LinkProperties linkProperties,
+            LinkCapabilities linkCapabilities, int networkType, boolean roaming,int subscription) {
+        if (!checkNotifyPermission("notifyDataConnection()" )) {
+            return;
+        }
+        if (DBG) {
+            Slog.i(TAG, "notifyDataConnection: state=" + state + " isDataConnectivityPossible="
+                + isDataConnectivityPossible + " reason='" + reason
+                + "' apn='" + apn + "' apnType=" + apnType + " networkType=" + networkType);
+        }
+        synchronized (mRecords) {
+            boolean modified = false;
+            if(subscription ==0 ) {
+              if (state == TelephonyManager.DATA_CONNECTED) {
+                 if (!mConnectedApns.contains(apnType)) {
+                    mConnectedApns.add(apnType);
+                    if (mDataConnectionState != state) {
+                        mDataConnectionState = state;
+                        modified = true;
+                    }
+                 }
+              } else {
+                 if (mConnectedApns.remove(apnType)) {
+                    if (mConnectedApns.isEmpty()) {
+                        mDataConnectionState = state;
+                        modified = true;
+                    } else {
+                        // leave mDataConnectionState as is and
+                        // send out the new status for the APN in question.
+                    }
+                }
+              }
+            }
+            if(subscription ==1) {
+               if (state == TelephonyManager.DATA_CONNECTED) {
+                 if (!mConnectedApnsSub1.contains(apnType)) {
+                    mConnectedApnsSub1.add(apnType);
+                    if (mDataConnectionStateSub1 != state) {
+                        mDataConnectionStateSub1 = state;
+                        modified = true;
+                    }
+                 }
+              } else {
+                 if (mConnectedApnsSub1.remove(apnType)) {
+                    if (mConnectedApnsSub1.isEmpty()) {
+                        mDataConnectionStateSub1 = state;
+                        modified = true;
+                    } else {
+                        // leave mDataConnectionState as is and
+                        // send out the new status for the APN in question.
+                    }
+                }
+              }
+            }
+
+            mDataConnectionPossible = isDataConnectivityPossible;
+            mDataConnectionReason = reason;
+            mDataConnectionLinkProperties = linkProperties;
+            mDataConnectionLinkCapabilities = linkCapabilities;
+            if (mDataConnectionNetworkType != networkType) {
+                mDataConnectionNetworkType = networkType;
+                // need to tell registered listeners about the new network type
+                modified = true;
+            }
+            if (modified) {
+                if (DBG) {
+                    Slog.d(TAG, "onDataConnectionStateChanged(" + mDataConnectionState
+                        + ", " + mDataConnectionNetworkType + ")");
+                }
+                for (Record r : mRecords) {
+                    if (subscription == r.subscription && (r.events & PhoneStateListener.LISTEN_DATA_CONNECTION_STATE) != 0) {
+                        try {
+                            r.callback.onDataConnectionStateChanged(
+                                    (subscription == 0)?mDataConnectionState:mDataConnectionStateSub1,
+                                    mDataConnectionNetworkType);
+                        } catch (RemoteException ex) {
+                            mRemoveList.add(r.binder);
+                        }
+                    }
+                }
+                handleRemoveListLocked();
+            }
+        }
+        broadcastDataConnectionStateChanged(state, isDataConnectivityPossible, reason, apn,
+                apnType, linkProperties, linkCapabilities, roaming,subscription);
+    }
+
+    public void notifyDataConnectionFailedWithSubScription(String reason, String apnType,int subscription) {
+        if (!checkNotifyPermission("notifyDataConnectionFailed()")) {
+            return;
+        }
+        broadcastDataConnectionFailed(reason, apnType,subscription);
+    }
+
+    private void broadcastDataConnectionFailed(String reason, String apnType,int subscription) {
+        Intent intent = new Intent(TelephonyIntents.ACTION_DATA_CONNECTION_FAILED);
+        intent.putExtra(Phone.FAILURE_REASON_KEY, reason);
+        intent.putExtra(Phone.DATA_APN_TYPE_KEY, apnType);
+        intent.putExtra(MSimConstants.SUBSCRIPTION_KEY,subscription);
+        mContext.sendStickyBroadcast(intent);
+    }
+
+    private void broadcastDataConnectionStateChanged(int state,
+            boolean isDataConnectivityPossible,
+            String reason, String apn, String apnType, LinkProperties linkProperties,
+            LinkCapabilities linkCapabilities, boolean roaming,int subscription) {
+        // Note: not reporting to the battery stats service here, because the
+        // status bar takes care of that after taking into account all of the
+        // required info.
+        Intent intent = new Intent(TelephonyIntents.ACTION_ANY_DATA_CONNECTION_STATE_CHANGED);
+        intent.putExtra(Phone.STATE_KEY, DefaultPhoneNotifier.convertDataState(state).toString());
+        if (!isDataConnectivityPossible) {
+            intent.putExtra(Phone.NETWORK_UNAVAILABLE_KEY, true);
+        }
+        if (reason != null) {
+            intent.putExtra(Phone.STATE_CHANGE_REASON_KEY, reason);
+        }
+        if (linkProperties != null) {
+            intent.putExtra(Phone.DATA_LINK_PROPERTIES_KEY, linkProperties);
+            String iface = linkProperties.getInterfaceName();
+            if (iface != null) {
+                intent.putExtra(Phone.DATA_IFACE_NAME_KEY, iface);
+            }
+        }
+        if (linkCapabilities != null) {
+            intent.putExtra(Phone.DATA_LINK_CAPABILITIES_KEY, linkCapabilities);
+        }
+        if (roaming) intent.putExtra(Phone.DATA_NETWORK_ROAMING_KEY, true);
+
+        intent.putExtra(Phone.DATA_APN_KEY, apn);
+        intent.putExtra(Phone.DATA_APN_TYPE_KEY, apnType);
+        intent.putExtra(Phone.DATA_SUBSCRIPTION_KEY, subscription);
+        mContext.sendStickyBroadcast(intent);
+    }
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
 
     public void notifyDataConnection(int state, boolean isDataConnectivityPossible,
             String reason, String apn, String apnType, LinkProperties linkProperties,

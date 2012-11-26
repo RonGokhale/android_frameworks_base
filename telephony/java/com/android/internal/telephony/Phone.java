@@ -113,6 +113,11 @@ public interface Phone {
     static final String DATA_NETWORK_ROAMING_KEY = "networkRoaming";
     static final String PHONE_IN_ECM_STATE = "phoneinECMState";
 
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    static final String DATA_SUBSCRIPTION_KEY = "subscription";
+    static final String DATA_NOTIFICATION_IND_KEY = "isNotification";
+    static final String DATA_NEEDSETUP_KEY = "needSetupData";
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     /**
      * APN types for data connections.  These are usage categories for an APN
      * entry.  One APN entry may support multiple APN types, eg, a single APN

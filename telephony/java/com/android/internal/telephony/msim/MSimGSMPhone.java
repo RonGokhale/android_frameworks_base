@@ -50,7 +50,7 @@ import com.android.internal.telephony.uicc.UiccCardApplication;
 import static com.android.internal.telephony.MSimConstants.EVENT_SUBSCRIPTION_ACTIVATED;
 import static com.android.internal.telephony.MSimConstants.EVENT_SUBSCRIPTION_DEACTIVATED;
 
-//import com.qrd.plugin.feature_query.FeatureQuery;
+import com.qrd.plugin.feature_query.FeatureQuery;
 
 public class MSimGSMPhone extends GSMPhone {
     // Holds the subscription information
@@ -260,6 +260,20 @@ public class MSimGSMPhone extends GSMPhone {
         Log.d(LOG_TAG, "updateCurrentCarrierInProvider: mSubscription = " + getSubscription()
                 + " currentDds = " + currentDds + " operatorNumeric = " + operatorNumeric);
 
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+            if (!TextUtils.isEmpty(operatorNumeric)) {
+                try {
+                    Uri uri = Uri.withAppendedPath(Telephony.Carriers.CONTENT_URI, "current");
+                    ContentValues map = new ContentValues();
+                    map.put(Telephony.Carriers.NUMERIC, operatorNumeric);
+                    mContext.getContentResolver().insert(uri, map);
+                    return true;
+                } catch (SQLException e) {
+                    Log.e(LOG_TAG, "Can't store current operator", e);
+                }
+            }
+        } else {
         if (!TextUtils.isEmpty(operatorNumeric) && (getSubscription() == currentDds)) {
             try {
                 Uri uri = Uri.withAppendedPath(Telephony.Carriers.CONTENT_URI, "current");
@@ -271,6 +285,8 @@ public class MSimGSMPhone extends GSMPhone {
                 Log.e(LOG_TAG, "Can't store current operator", e);
             }
         }
+        }
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         return false;
     }
 

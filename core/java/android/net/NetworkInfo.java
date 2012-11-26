@@ -21,6 +21,7 @@ import android.os.Parcel;
 
 import java.util.EnumMap;
 
+import com.qrd.plugin.feature_query.FeatureQuery;
 /**
  * Describes the status of a network interface.
  * <p>Use {@link ConnectivityManager#getActiveNetworkInfo()} to get an instance that represents
@@ -115,6 +116,9 @@ public class NetworkInfo implements Parcelable {
     private String mExtraInfo;
     private boolean mIsFailover;
     private boolean mIsRoaming;
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+    private int mSubscription;
+    /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     /**
      * Indicates whether network connectivity is possible:
      */
@@ -143,6 +147,9 @@ public class NetworkInfo implements Parcelable {
         mState = State.UNKNOWN;
         mIsAvailable = false; // until we're told otherwise, assume unavailable
         mIsRoaming = false;
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+        mSubscription = 0;
+        /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
     }
 
     /** {@hide} */
@@ -159,8 +166,23 @@ public class NetworkInfo implements Parcelable {
             mIsFailover = source.mIsFailover;
             mIsRoaming = source.mIsRoaming;
             mIsAvailable = source.mIsAvailable;
+            /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+            if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+                mSubscription = source.mSubscription;
+            }
+            /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         }
     }
+
+   /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+   public int getSubscription() {
+       return mSubscription;
+   }
+
+   public void setSubscription(int subscription) {
+       mSubscription = subscription;
+   }
+   /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
 
     /**
      * Reports the type of network to which the
@@ -428,6 +450,11 @@ public class NetworkInfo implements Parcelable {
             dest.writeInt(mIsRoaming ? 1 : 0);
             dest.writeString(mReason);
             dest.writeString(mExtraInfo);
+            /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+            if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+                dest.writeInt(mSubscription);
+            }
+            /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
         }
     }
 
@@ -450,6 +477,11 @@ public class NetworkInfo implements Parcelable {
                 netInfo.mIsRoaming = in.readInt() != 0;
                 netInfo.mReason = in.readString();
                 netInfo.mExtraInfo = in.readString();
+                /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 begin*/
+                if(FeatureQuery.FEATURE_DATA_CONNECT_FOR_W_PLUS_G) {
+                    netInfo.mSubscription = in.readInt();
+                }
+                /*add by YELLOWSTONE_wangzhihui for FEATURE_DATA_CONNECT_FOR_W_PLUS_G 20121123 end*/
                 return netInfo;
             }
 
