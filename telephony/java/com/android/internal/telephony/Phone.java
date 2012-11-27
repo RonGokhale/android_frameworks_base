@@ -281,7 +281,11 @@ public interface Phone {
     public static final int CDMA_OTA_PROVISION_STATUS_OTAPA_STOPPED = 10;
     public static final int CDMA_OTA_PROVISION_STATUS_OTAPA_ABORTED = 11;
 
-
+    /* add by LiXinwei for subscription 20121126 begin */
+	public static final int SUB1_WCDMA = 0;
+	public static final int SUB2_GSM = 1;
+	/* add by LiXinwei for subscription 20121126 end */
+	
     /**
      * Get the current ServiceState. Use
      * <code>registerForServiceStateChanged</code> to be informed of
