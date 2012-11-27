@@ -1466,6 +1466,21 @@ public final class Telephony {
 
         public static final Uri REPORT_STATUS_URI = Uri.withAppendedPath(
                                             CONTENT_URI, "report-status");
+        /*add by SKU1_fengdening for UnicomLeMedia begin*/
+	public static final class ScrapSpace {
+	    /**
+	      *         The content:// style URL for this table
+	      */
+	    public static final Uri CONTENT_URI = Uri.parse("content://mms_temp_file/scrapSpace");
+            /**
+	      *       This is the scrap file we use to store the media attachment when the user
+	      *       chooses to capture a photo to be attached . We pass {#link@Uri} to the Camera app,
+              *       which streams the captured image to the uri. Internally we write the media content
+	      *       to this file. It's named '.temp.jpg' so Gallery won't pick it up.
+              */
+	    public static final String SCRAP_FILE_PATH = "/emmc/mms/scrapSpace/.temp.jpg";
+	 }     
+	 /*add by SKU1_fengdening for UnicomLeMedia end*/
 
         /**
          * The default sort order for this table
@@ -1571,21 +1586,6 @@ public final class Telephony {
              * The default sort order for this table
              */
             public static final String DEFAULT_SORT_ORDER = "date DESC";
-            /*add by SKU1_fengdening for UnicomLeMedia begin*/
-	    public static final class ScrapSpace {
-	        /**
-		  *         The content:// style URL for this table
-		  */
-		public static final Uri CONTENT_URI = Uri.parse("content://mms_temp_file/scrapSpace");
-		    /**
-		      *       This is the scrap file we use to store the media attachment when the user
-		      *       chooses to capture a photo to be attached . We pass {#link@Uri} to the Camera app,
-		      *       which streams the captured image to the uri. Internally we write the media content
-		      *       to this file. It's named '.temp.jpg' so Gallery won't pick it up.
-		      */
-		public static final String SCRAP_FILE_PATH = "/emmc/mms/scrapSpace/.temp.jpg";
-	    }     
-	    /*add by SKU1_fengdening for UnicomLeMedia end*/
 
         }
 
