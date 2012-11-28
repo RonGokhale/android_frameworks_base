@@ -2088,7 +2088,8 @@ public final class CallManager {
                     break;
                 case EVENT_NEW_RINGING_CONNECTION:
                     if (VDBG) Log.d(LOG_TAG, " handleMessage (EVENT_NEW_RINGING_CONNECTION)");
-                    if (getActiveFgCallState().isDialing() || hasMoreThanOneRingingCall()) {
+					/*delete by YELLOWSTONE_dingning for allow sim1 and sim2 incoming at the same time 20121128 begin*/
+                    /*if (getActiveFgCallState().isDialing() || hasMoreThanOneRingingCall()) {
                         Connection c = (Connection) ((AsyncResult) msg.obj).result;
                         try {
                             Log.d(LOG_TAG, "silently drop incoming call: " + c.getCall());
@@ -2096,7 +2097,9 @@ public final class CallManager {
                         } catch (CallStateException e) {
                             Log.w(LOG_TAG, "new ringing connection", e);
                         }
-                    } else {
+                    } else */
+                    /*delete by YELLOWSTONE_dingning for allow sim1 and sim2 incoming at the same time 20121128 end*/
+                    {
                         mNewRingingConnectionRegistrants.notifyRegistrants((AsyncResult) msg.obj);
                     }
                     break;
