@@ -1885,6 +1885,32 @@ public final class CallManager {
         return call;
     }
 
+    /**
+     * add by YELLOWSTONE_dingning 20121129
+     * return the active foreground call which in audio from foreground calls
+	 */
+	public Call getRealActiveFgCall() {
+		Call fgCall = null;
+		String inAudioCall = SystemProperties.get("gsm.dsda.audio.type", "IDLE_INCALL");
+		int phoneSub = Phone.PHONE_TYPE_NONE;
+        for (Call call : mForegroundCalls) {
+			phoneSub = call.getPhone().getSubscription();
+            if (!call.isIdle() && 
+				((phoneSub==Phone.SIM1_SUB&& inAudioCall.equals("WCDMA_INCALL")) ||
+                        (phoneSub==Phone.SIM2_SUB&& inAudioCall.equals("GSM_INCALL")) ||
+                        (phoneSub!=Phone.SIM1_SUB && phoneSub!=Phone.SIM2_SUB))) {
+            	return call;
+            } else if (call.getState() != Call.State.IDLE) {
+                if (fgCall == null) fgCall = call;
+            }
+        }
+        if (fgCall == null)
+        {
+            fgCall = getActiveFgCall();
+        }
+		return fgCall;
+	}
+
     // Returns the first call that is not in IDLE state. If both active calls
     // and disconnecting/disconnected calls exist, return the first active call.
     private Call getFirstNonIdleCall(List<Call> calls) {
@@ -2019,6 +2045,22 @@ public final class CallManager {
             }
         }
         return null;
+    }
+
+    /**
+
+    /**
+     * add by YELLOWSTONE_dingning 20121129
+     * @return the special sub active call from a call list
+     */
+     public Call getSpecialSubActiveCall(int sub){
+     	for (Call call : mForegroundCalls) {
+			if (!call.isIdle()) {
+				if (sub == call.getPhone().getSubscription())
+					return call;
+			}
+     	}
+		return null;
     }
 
     /**
