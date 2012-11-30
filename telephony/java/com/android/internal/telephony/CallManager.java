@@ -128,6 +128,9 @@ public final class CallManager {
 
     // This variable tells us the type of baseband
     private String mBaseband = SystemProperties.get(TelephonyProperties.PROPERTY_BASEBAND, "msm");
+	
+    // record last time set audio type(GSM_INCALL WCDMA_INCALL or IDLE_INCALL)
+	private String lastAudioType = "IDLE_INCALL";
 
     // state registrants
     protected final RegistrantList mPreciseCallStateRegistrants
@@ -280,6 +283,28 @@ public final class CallManager {
     }
 
     /**
+     * add by YELLOWSTONE_dingning 20121130
+     * Get current coarse-grained voice call state.
+     * If the Call Manager has an active call(W/G) and other call(W/G) incoming,
+     * then the phone state is OFFHOOK not RINGING (for set audio)
+     *
+     */
+    public Phone.State getStateEx() {
+        Phone.State s = Phone.State.IDLE;
+		Phone.State ss = Phone.State.IDLE;
+
+        for (Phone phone : mPhones) {
+            if (phone.getState() == Phone.State.RINGING) {
+                s = Phone.State.RINGING;
+            } else if (phone.getState() == Phone.State.OFFHOOK) {
+                ss = Phone.State.OFFHOOK;
+            }
+        }
+		if (ss == Phone.State.OFFHOOK) s = ss;
+        return s;
+    }
+
+    /**
      * @return the service state of CallManager, which represents the
      * highest priority state of all the service states of phones
      *
@@ -386,10 +411,26 @@ public final class CallManager {
     }
 
     /**
+     * add by YELLOWSTONE_dingning 20121130
+     * @return the phone associated with the foreground call which in audio
+     */
+    public Phone getRealFgPhone() {
+        return getRealActiveFgCall().getPhone();
+    }
+
+    /**
      * @return the phone associated with the background call
      */
     public Phone getBgPhone() {
         return getFirstActiveBgCall().getPhone();
+    }
+
+    /**
+     * add by YELLOWSTONE_dingning 20121130
+     * @return the phone associated with the foreground call which in audio
+     */
+    public Phone getRealBgPhone() {
+        return getRealActiveBgCall().getPhone();
     }
 
     /**
@@ -404,14 +445,16 @@ public final class CallManager {
      */
     public Phone getPhoneInCall() {
         Phone phone = null;
+		/* modify by YELLOWSTONE_dingning for get the call in audio 20121130 begin*/
         if (!getFirstActiveRingingCall().isIdle()) {
             phone = getFirstActiveRingingCall().getPhone();
-        } else if (!getActiveFgCall().isIdle()) {
-            phone = getActiveFgCall().getPhone();
+        } else if (!getRealActiveFgCall().isIdle()) {
+            phone = getRealActiveFgCall().getPhone();
         } else {
             // If BG call is idle, we return default phone
-            phone = getFirstActiveBgCall().getPhone();
+            phone = getRealActiveBgCall().getPhone();
         }
+		/* modify by YELLOWSTONE_dingning for get the call in audio 20121130 end*/
         return phone;
     }
 
@@ -544,8 +587,10 @@ public final class CallManager {
         int mode = AudioManager.MODE_NORMAL;
         int inCallMode = 0; // inCallMode is a bitmap. Clearing all bits
 
-        Log.d(LOG_TAG, "setAudioAndInCall state: " + getState());
-        switch (getState()) {
+        /*modify by YELLOWSTONE_dingning for audio set 20121130 begin*/
+        Log.d(LOG_TAG, "setAudioAndInCall state: " + getStateEx());
+        switch (getStateEx()) {
+		/*modify by YELLOWSTONE_dingning for audio set 20121130 end*/
             case RINGING:
                 mode = AudioManager.MODE_RINGTONE;
                 break;
@@ -596,7 +641,9 @@ public final class CallManager {
 
         // change the audio mode and request/abandon audio focus according to phone state,
         // but only on audio mode transitions
-        switch (getState()) {
+        /*modify by YELLOWSTONE_dingning for audio set 20121130 begin*/
+		String audioType  = SystemProperties.get("gsm.dsda.audio.type", "IDLE_INCALL");
+        switch (getStateEx()) {
             case RINGING:
                 if (audioManager.getMode() != AudioManager.MODE_RINGTONE) {
                     // only request audio focus if the ringtone is going to be heard
@@ -609,11 +656,11 @@ public final class CallManager {
                 }
                 break;
             case OFFHOOK:
-                Phone offhookPhone = getFgPhone();
+                Phone offhookPhone = getRealFgPhone();
                 if (getActiveFgCallState() == Call.State.IDLE) {
                     // There is no active Fg calls, the OFFHOOK state
                     // is set by the Bg call. So set the phone to bgPhone.
-                    offhookPhone = getBgPhone();
+                    offhookPhone = getRealBgPhone();//getBgPhone();
                 }
 
                 int newAudioMode = AudioManager.MODE_IN_CALL;
@@ -623,7 +670,8 @@ public final class CallManager {
                     newAudioMode = AudioManager.MODE_IN_COMMUNICATION;
                 }
                 int currMode = audioManager.getMode();
-                if (currMode != newAudioMode) {
+                if (currMode != newAudioMode ||
+					( (currMode == newAudioMode)&&(!audioType.equals(lastAudioType)))) {
                     // request audio focus before setting the new mode
                     Log.d(LOG_TAG, "requestAudioFocus on STREAM_VOICE_CALL");
                     audioManager.requestAudioFocusForCall(AudioManager.STREAM_VOICE_CALL,
@@ -632,6 +680,7 @@ public final class CallManager {
                             + currMode + " to " + newAudioMode);
                     audioManager.setMode(newAudioMode);
                 }
+				lastAudioType = audioType;
                 break;
             case IDLE:
                 if (audioManager.getMode() != AudioManager.MODE_NORMAL) {
@@ -642,6 +691,7 @@ public final class CallManager {
                 }
                 break;
         }
+		/*modify by YELLOWSTONE_dingning for audio set 20121130 end*/
     }
 
     private Context getContext() {
@@ -911,7 +961,8 @@ public final class CallManager {
         Phone heldPhone = null;
 
         if (hasActiveFgCall()) {
-            activePhone = getActiveFgCall().getPhone();
+			//modify by YELLOWSTONE_dingning for get fg call in audio 20121130
+            activePhone = getRealActiveFgCall().getPhone();
         }
 
         if (heldCall != null) {
@@ -937,8 +988,11 @@ public final class CallManager {
             Log.d(LOG_TAG, this.toString());
         }
 
-
-        Phone fgPhone = getFgPhone();
+        /*modify by YELLOWSTONE_dingning for Get fg Phone in audio 20121130 begin*/
+        //Phone fgPhone = getFgPhone();
+        Phone fgPhone = getRealFgPhone();
+		if (VDBG) Log.d(LOG_TAG, "conference phonetype" + fgPhone.getPhoneType());
+		/*modify by YELLOWSTONE_dingning for Get fg Phone in audio 20121130 end*/
         if (fgPhone instanceof SipPhone) {
             ((SipPhone) fgPhone).conference(heldCall);
         } else if (canConference(heldCall)) {
@@ -1179,7 +1233,8 @@ public final class CallManager {
         }
 
         if (hasActiveFgCall()) {
-            getActiveFgCall().getPhone().setMute(muted);
+			//modify by YELLOWSTONE_dingning for Get fg call in audio 20121130
+            getRealActiveFgCall().getPhone().setMute(muted);
         }
 
         if (VDBG) {
@@ -1198,11 +1253,15 @@ public final class CallManager {
      * @return true is muting, false is unmuting
      */
     public boolean getMute() {
+        /*modify by YELLOWSTONE_dingning for Get the call in audio 20121130 begin*/
         if (hasActiveFgCall()) {
-            return getActiveFgCall().getPhone().getMute();
+            //return getActiveFgCall().getPhone().getMute();
+            return getRealActiveFgCall().getPhone().getMute();
         } else if (hasActiveBgCall()) {
-            return getFirstActiveBgCall().getPhone().getMute();
+            //return getFirstActiveBgCall().getPhone().getMute();
+            return getRealActiveBgCall().getPhone().getMute();
         }
+		/*modify by YELLOWSTONE_dingning for Get the call in audio 20121130 end*/
         return false;
     }
 
@@ -1242,7 +1301,9 @@ public final class CallManager {
         }
 
         if (hasActiveFgCall()) {
-            getActiveFgCall().getPhone().sendDtmf(c);
+			//modify by YELLOWSTONE_dingning for Get fg call in audio 20121130
+            getRealActiveFgCall().getPhone().sendDtmf(c);
+			
             result = true;
         }
 
@@ -1271,7 +1332,9 @@ public final class CallManager {
         }
 
         if (hasActiveFgCall()) {
-            getActiveFgCall().getPhone().startDtmf(c);
+			//modify by YELLOWSTONE_dingning for Get fg call in audio 20121130
+            getRealActiveFgCall().getPhone().startDtmf(c);
+
             result = true;
         }
 
@@ -1292,8 +1355,9 @@ public final class CallManager {
             Log.d(LOG_TAG, " stopDtmf()" );
             Log.d(LOG_TAG, this.toString());
         }
-
-        if (hasActiveFgCall()) getFgPhone().stopDtmf();
+		
+        //modify by YELLOWSTONE_dingning for Get fg call in audio 20121130
+        if (hasActiveFgCall()) getRealFgPhone().stopDtmf();//getFgPhone().stopDtmf();
 
         if (VDBG) {
             Log.d(LOG_TAG, "End stopDtmf()");
@@ -1317,7 +1381,9 @@ public final class CallManager {
      */
     public boolean sendBurstDtmf(String dtmfString, int on, int off, Message onComplete) {
         if (hasActiveFgCall()) {
-            getActiveFgCall().getPhone().sendBurstDtmf(dtmfString, on, off, onComplete);
+			//modify by YELLOWSTONE_dingning for Get fg call in audio 20121130
+            getRealActiveFgCall().getPhone().sendBurstDtmf(dtmfString, on, off, onComplete);
+
             return true;
         }
         return false;
@@ -1911,6 +1977,32 @@ public final class CallManager {
 		return fgCall;
 	}
 
+    /**
+     * add by YELLOWSTONE_dingning 20121130
+     * return the active background call which in audio from background calls
+	 */
+	public Call getRealActiveBgCall() {
+		Call bgCall = null;
+		String inAudioCall = SystemProperties.get("gsm.dsda.audio.type", "IDLE_INCALL");
+		int phoneSub = Phone.PHONE_TYPE_NONE;
+        for (Call call : mBackgroundCalls) {
+			phoneSub = call.getPhone().getSubscription();
+            if (!call.isIdle() && 
+				((phoneSub==Phone.SIM1_SUB&& inAudioCall.equals("WCDMA_INCALL")) ||
+                        (phoneSub==Phone.SIM2_SUB&& inAudioCall.equals("GSM_INCALL")) ||
+                        (phoneSub!=Phone.SIM1_SUB && phoneSub!=Phone.SIM2_SUB))) {
+            	return call;
+            } else if (call.getState() != Call.State.IDLE) {
+                if (bgCall == null) bgCall = call;
+            }
+        }
+        if (bgCall == null)
+        {
+            bgCall = getFirstActiveBgCall();
+        }
+		return bgCall;
+	}
+
     // Returns the first call that is not in IDLE state. If both active calls
     // and disconnecting/disconnected calls exist, return the first active call.
     private Call getFirstNonIdleCall(List<Call> calls) {
@@ -1990,7 +2082,9 @@ public final class CallManager {
      * return empty list if there is no active foreground call
      */
     public List<Connection> getFgCallConnections() {
-        Call fgCall = getActiveFgCall();
+        //modify by YELLOWSTONE_dingning for get fg call in audio 20121130
+        Call fgCall = getRealActiveFgCall();
+
         if ( fgCall != null) {
             return fgCall.getConnections();
         }
@@ -2002,7 +2096,9 @@ public final class CallManager {
      * return empty list if there is no active background call
      */
     public List<Connection> getBgCallConnections() {
-        Call bgCall = getFirstActiveBgCall();
+        // modify by YELLOWSTONE_dingning for get bg call in audio 20121130
+        Call bgCall = getRealActiveBgCall();
+		
         if ( bgCall != null) {
             return bgCall.getConnections();
         }
