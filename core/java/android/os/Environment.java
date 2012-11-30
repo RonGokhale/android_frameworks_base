@@ -129,8 +129,10 @@ public class Environment {
     private static final File EXTERNAL_STORAGE_DIRECTORY
             = getDirectory("EXTERNAL_STORAGE", "/storage/sdcard0");
 
+    //add by YELLOWSTONE_liuzhihao for internal storage state 20121130 begin
     private static final File INTERNAL_STORAGE_DIRECTORY
             = getDirectory("INTERNAL_STORAGE", "/storage/sdcard1");
+    //add by YELLOWSTONE_liuzhihao for internal storage state 20121130 end
 
     private static final File EXTERNAL_STORAGE_ANDROID_DATA_DIRECTORY = new File(new File(
             getDirectory("EXTERNAL_STORAGE", "/storage/sdcard0"), "Android"), "data");
@@ -193,9 +195,11 @@ public class Environment {
         return EXTERNAL_STORAGE_DIRECTORY;
     }
 
+    //add by YELLOWSTONE_liuzhihao for internal storage state 20121130 begin
     public static File getInternalStorageDirectory() {
         return INTERNAL_STORAGE_DIRECTORY;
     }
+    //add by YELLOWSTONE_liuzhihao for internal storage state 20121130 end
 
     /**
      * Standard directory in which to place any audio files that should be
@@ -444,6 +448,7 @@ public class Environment {
         }
     }
 
+    //add by YELLOWSTONE_liuzhihao for internal storage state 20121130 begin
     public static String getInternalStorageState() {
         try {
             IMountService mountService = IMountService.Stub.asInterface(ServiceManager
@@ -454,6 +459,7 @@ public class Environment {
             return Environment.MEDIA_REMOVED;
         }
     }
+    //add by YELLOWSTONE_liuzhihao for internal storage state 20121130 end
 
     /**
      * Returns whether the primary "external" storage device is removable.
