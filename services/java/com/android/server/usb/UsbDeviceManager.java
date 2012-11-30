@@ -93,7 +93,8 @@ public class UsbDeviceManager {
 
     private static final int AUDIO_MODE_NONE = 0;
     private static final int AUDIO_MODE_SOURCE = 1;
-	private static final int MSG_UPDATE_NOTIFICATION = 5;
+    //add by YELLOWSTONE_liuzhihao for update notification 20121130 begin
+    private static final int MSG_UPDATE_NOTIFICATION = 5;
 
     // Delay for debouncing USB disconnects.
     // We often get rapid connect/disconnect events when enabling USB functions,
@@ -149,6 +150,7 @@ public class UsbDeviceManager {
         }
     };
 
+    //add by YELLOWSTONE_liuzhihao for update notification 20121130 begin
     /*
      * Listens for system language changed from settings
      */
@@ -162,6 +164,7 @@ public class UsbDeviceManager {
             }
         }
     };
+    //add by YELLOWSTONE_liuzhihao for update notification 20121130 end
 
     public UsbDeviceManager(Context context, UsbSettingsManager settingsManager) {
         mContext = context;
@@ -363,6 +366,7 @@ public class UsbDeviceManager {
 
                 mContext.registerReceiver(mBootCompletedReceiver,
                         new IntentFilter(Intent.ACTION_BOOT_COMPLETED));
+                //add by YELLOWSTONE_liuzhihao for update notification 20121130 begin
                 mContext.registerReceiver(mLocaleReceiver, new IntentFilter(Intent.ACTION_LOCALE_CHANGED));
             } catch (Exception e) {
                 Slog.e(TAG, "Error initializing UsbHandler", e);
@@ -479,10 +483,12 @@ public class UsbDeviceManager {
                         Slog.e(TAG, "Failed to switch persistent USB config to " + functions);
                         // revert to previous configuration if we fail
                         SystemProperties.set("persist.sys.usb.config", mDefaultFunctions);
+                        //add by YELLOWSTONE_liuzhihao for MountService 20121130 begin
                         if (!waitForState(mDefaultFunctions)) {
                             Slog.e(TAG,"Failed to switch to default Fcuntion(" + mDefaultFunctions + ")" );
                         }
                         mCurrentFunctions = mDefaultFunctions;
+                        //add by YELLOWSTONE_liuzhihao for MountService 20121130 end
                     }
                 }
             } else {
@@ -631,6 +637,7 @@ public class UsbDeviceManager {
                         mSettingsManager.accessoryAttached(mCurrentAccessory);
                     }
                     break;
+                //add by YELLOWSTONE_liuzhihao for update notification 20121130 begin
                 case MSG_UPDATE_NOTIFICATION:
                     //reload adb&Usb notification when system language changed
                     mAdbNotificationShown = false;
@@ -638,6 +645,7 @@ public class UsbDeviceManager {
                     updateUsbNotification();
                     updateAdbNotification();
                     break;
+                 //add by YELLOWSTONE_liuzhihao for update notification 20121130 end
             }
         }
 

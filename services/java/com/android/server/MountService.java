@@ -125,6 +125,7 @@ class MountService extends IMountService.Stub
         public static final int Formatting = 6;
         public static final int Shared     = 7;
         public static final int SharedMnt  = 8;
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 begin
 	public static final int Incompat   = 9;
     }
 
@@ -375,6 +376,7 @@ class MountService extends IMountService.Stub
                 case H_UNMOUNT_PM_UPDATE: {
                     if (DEBUG_UNMOUNT) Slog.i(TAG, "H_UNMOUNT_PM_UPDATE");
                     UnmountCallBack ucb = (UnmountCallBack) msg.obj;
+                    //add by YELLOWSTONE_liuzhihao for MountService 20121130 begin
                     if (!mUpdatingStatus && !isExternalStorage(ucb.path)) {
                         // If PM isn't already updating, and this isn't an ASEC
                         // mount, then go ahead and do the unmount immediately.
@@ -382,6 +384,7 @@ class MountService extends IMountService.Stub
                         ucb.handleFinished();
                         break;
                     }
+                    //add by YELLOWSTONE_liuzhihao for MountService 20121130 end
                     mForceUnmounts.add(ucb);
                     if (DEBUG_UNMOUNT) Slog.i(TAG, " registered = " + mUpdatingStatus);
                     // Register only if needed.
@@ -611,6 +614,7 @@ class MountService extends IMountService.Stub
 
         Slog.d(TAG, "volume state changed for " + path + " (" + oldState + " -> " + state + ")");
 
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 begin
         //external storage may not be primary volume
         if (path.equals(mExternalStoragePath) || isExternalStorage(path)) {
             // Update state on PackageManager, but only of real events
@@ -631,6 +635,7 @@ class MountService extends IMountService.Stub
                     if (isExternalStorage(path)) {
                         mPms.updateExternalMediaStatus(true, false);
                     }
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 end
                 }
             }
         }
@@ -686,6 +691,7 @@ class MountService extends IMountService.Stub
                             state = Environment.MEDIA_SHARED;
                             Slog.i(TAG, "Media shared on daemon connection");
                         } else {
+                        //add by YELLOWSTONE_liuzhihao for MountService 20121130 begin
                             //FIX:
                             //DO NOT throw exception here, in case of one volume corruption,
                             //others could be also updated without interruption
@@ -693,6 +699,7 @@ class MountService extends IMountService.Stub
 
                             Slog.e(TAG, "Unexpected state " + st + ", set to unmountable state");
                             state = Environment.MEDIA_UNMOUNTABLE;
+                        //add by YELLOWSTONE_liuzhihao for MountService 20121130 end
                         }
 
                         if (state != null) {
@@ -806,9 +813,11 @@ class MountService extends IMountService.Stub
                 if (DEBUG_EVENTS) Slog.i(TAG, "Sending media bad removal");
                 updatePublicVolumeState(path, Environment.MEDIA_BAD_REMOVAL);
                 action = Intent.ACTION_MEDIA_BAD_REMOVAL;
+                //add by YELLOWSTONE_liuzhihao for MountService 20121130 begin
                 synchronized (mAsecMountSet) {
                     mAsecMountSet.clear();
                 }
+                //add by YELLOWSTONE_liuzhihao for MountService 20121130 end
             } else {
                 Slog.e(TAG, String.format("Unknown code {%d}", code));
             }
@@ -850,11 +859,15 @@ class MountService extends IMountService.Stub
                 updatePublicVolumeState(path, Environment.MEDIA_UNMOUNTED);
                 action = Intent.ACTION_MEDIA_UNMOUNTED;
             }
-        } else if (newState == VolumeState.Incompat) {
+        } 
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 begin
+        else if (newState == VolumeState.Incompat) {
 		if (DEBUG_EVENTS) Slog.i(TAG, "incompatible card");
 		updatePublicVolumeState(path, Environment.MEDIA_NOFS);
 		action = Intent.ACTION_MEDIA_NOFS;
-	} else if (newState == VolumeState.Pending) {
+	} 
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 end
+        else if (newState == VolumeState.Pending) {
         } else if (newState == VolumeState.Checking) {
             if (DEBUG_EVENTS) Slog.i(TAG, "updating volume state checking");
             updatePublicVolumeState(path, Environment.MEDIA_CHECKING);
@@ -960,10 +973,12 @@ class MountService extends IMountService.Stub
          */
         Runtime.getRuntime().gc();
 
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 begin
         // Redundant probably. But no harm in updating state again.
         if (isExternalStorage(path)) {
             mPms.updateExternalMediaStatus(false, false);
         }
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 end
         try {
             final Command cmd = new Command("volume", "unmount", path);
             if (removeEncryption) {
@@ -1045,6 +1060,7 @@ class MountService extends IMountService.Stub
             mSendUmsConnectedOnBoot = avail;
         }
 
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 begin
         final ArrayList<String> volumes = getShareableVolumes();
         boolean mediaShared = false;
         for (String path : volumes) {
@@ -1070,6 +1086,7 @@ class MountService extends IMountService.Stub
                                                     path, rc));
                                 }
                             }
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 end
                         }
                     } catch (Exception ex) {
                         Slog.w(TAG, "Failed to mount media on UMS enabled-disconnect", ex);
@@ -1221,6 +1238,7 @@ class MountService extends IMountService.Stub
         // Add OBB Action Handler to MountService thread.
         mObbActionHandler = new ObbActionHandler(mHandlerThread.getLooper());
 
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 begin
         /*
          * Vold does not run in the simulator, so pretend the connector thread
          * ran and did its thing.
@@ -1228,6 +1246,7 @@ class MountService extends IMountService.Stub
         if ("simulator".equals(SystemProperties.get("ro.product.device"))) {
             return;
         }
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 end
 
         /*
          * Create the connection to vold with a maximum queue of twice the
@@ -1353,6 +1372,7 @@ class MountService extends IMountService.Stub
         }
     }
 
+    //add by YELLOWSTONE_liuzhihao for MountService 20121130 begin
     private boolean isExternalStorage(String path) {
         return Environment.getExternalStorageDirectory().getPath().equals(path);
     }
@@ -1369,11 +1389,13 @@ class MountService extends IMountService.Stub
         }
         return volumesToMount;
     }
+    //add by YELLOWSTONE_liuzhihao for MountService 20121130 end
 
     public void setUsbMassStorageEnabled(boolean enable) {
         waitForReady();
         validatePermission(android.Manifest.permission.MOUNT_UNMOUNT_FILESYSTEMS);
 
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 begin
         // TODO: Add support for multiple share methods
         for (String path : getShareableVolumes()) {
             /*
@@ -1407,16 +1429,19 @@ class MountService extends IMountService.Stub
                 }
             }
         }
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 end
     }
 
     public boolean isUsbMassStorageEnabled() {
         waitForReady();
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 begin
         for (String path : getShareableVolumes()) {
             if (doGetVolumeShared(path, "ums"))
                 return true;
         }
         // no volume is shared
         return false;
+        //add by YELLOWSTONE_liuzhihao for MountService 20121130 end
     }
 
     /**
