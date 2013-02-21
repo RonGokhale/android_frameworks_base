@@ -1,0 +1,25 @@
+From 2159cbd6a7b2204f33b4c63b365d2b70c6d8b456 Mon Sep 17 00:00:00 2001
+From: RonGokhale <cips173@gmail.com>
+Date: Thu, 21 Feb 2013 12:10:52 +0530
+Subject: [PATCH]  Fixed Data usage option
+
+Change-Id: I7143b00dbf30cea6a643133c2eb4ed0c3e71e421
+---
+ .../android/server/NetworkManagementService.java   |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/services/java/com/android/server/NetworkManagementService.java b/services/java/com/android/server/NetworkManagementService.java
+index 77e3da1..847cd94 100644
+--- a/services/java/com/android/server/NetworkManagementService.java
++++ b/services/java/com/android/server/NetworkManagementService.java
+@@ -336,6 +336,7 @@ public class NetworkManagementService extends INetworkManagementService.Stub
+                     mBandwidthControlEnabled = true;
+                 } catch (NativeDaemonConnectorException e) {
+                     Log.wtf(TAG, "problem enabling bandwidth controls", e);
++                    mBandwidthControlEnabled = true;
+                 }
+             } else {
+                 mBandwidthControlEnabled = true;
+-- 
+1.7.5.4
+
